@@ -58,13 +58,18 @@ if uploaded_file is not None:
     st.write(f"**Total Entities Detected**: {len(detections)}")
     st.write(f"**Unique Mappings Generated**: {stats['unique_entities_mapped']}")
 
-    cat_counts = {}
+    ALL_CATEGORIES = [
+        "ADDRESS", "CREDIT_CARD", "DOB", "EMAIL",
+        "IP_ADDRESS", "ORGANIZATION", "PERSON", "PHONE", "SSN"
+    ]
+    cat_counts = {cat: 0 for cat in ALL_CATEGORIES}
     for d in detections:
-        cat_counts[d['type']] = cat_counts.get(d['type'], 0) + 1
+        if d['type'] in cat_counts:
+            cat_counts[d['type']] += 1
 
     st.markdown("### Category Breakdown")
-    for cat, count in sorted(cat_counts.items()):
-        st.write(f"- **{cat}**: {count} instance(s)")
+    for cat in ALL_CATEGORIES:
+        st.write(f"- **{cat}**: {cat_counts[cat]} instance(s)")
 
     # Provide Download
     with open(output_path, "rb") as f:
