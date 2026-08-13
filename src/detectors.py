@@ -205,10 +205,11 @@ COMPANY_LABEL_REGEX = re.compile(
     re.IGNORECASE
 )
 # General Indian address pattern: triggered only after an "Address:" label.
-# Looks for content spanning up to 3 lines that contains a PIN code (6 digits).
+# Matches up to 3 lines (no DOTALL — explicit newline crossing) containing a 6-digit PIN code.
+# This prevents greedy multi-paragraph capture in real documents.
 ADDRESS_LABEL_REGEX = re.compile(
-    r'Address\s*:\s*\n?\s*(.+?(?:\n.+?){0,2}\b\d{6}\b[^\n]*)',
-    re.IGNORECASE | re.DOTALL
+    r'Address\s*:\s*\n?\s*([^\n]+(?:\n[^\n]+){0,2})',
+    re.IGNORECASE
 )
 
 
@@ -250,8 +251,11 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
     # 3. Label-based Address: "Address:" followed by content with a 6-digit PIN code
     for match in ADDRESS_LABEL_REGEX.finditer(text):
         addr_text = match.group(1).strip()
-        # Avoid capturing addresses already caught by KNOWN_ADDRESSES
-        if addr_text and not any(ka.lower() in addr_text.lower() for ka in KNOWN_ADDRESSES):
+        # Only accept if a 6-digit PIN code is present (Indian postal code)
+        # and not already caught by KNOWN_ADDRESSES
+        if (addr_text
+                and re.search(r'\b\d{6}\b', addr_text)
+                and not any(ka.lower() in addr_text.lower() for ka in KNOWN_ADDRESSES)):
             detections.append({
                 "text": addr_text,
                 "type": "ADDRESS",
