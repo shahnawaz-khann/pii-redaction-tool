@@ -18,7 +18,7 @@ except Exception:
 EMAIL_REGEX = re.compile(r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b')
 PHONE_REGEX = re.compile(r'(?:\+91[\s\-]?)?(?:\(0?\d{2,4}\)|0\d{2,4})[\s\-]?\d{6,8}|\+91[\s\-]\d{2,5}[\s\-]\d{6,8}|\+91\s\d{10}')
 SSN_REGEX = re.compile(r'\b\d{3}[-\s]\d{2}[-\s]\d{4}\b')
-CREDIT_CARD_REGEX = re.compile(r'\b(?:\d[ -]*?){13,19}\b')
+CREDIT_CARD_REGEX = re.compile(r'(?<![\d])(?:\d[ -]*){13,19}\d(?![\d])')
 IP_REGEX = re.compile(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b')
 
 # DOB Context Keywords
@@ -194,8 +194,26 @@ def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
     return detections
 
 
+# Label-based context patterns — only fire when an explicit label precedes the value
+# Matches the value on the same line or the next non-empty line after the label.
+NAME_LABEL_REGEX = re.compile(
+    r'(?:Full\s+Name|Name)\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+    re.IGNORECASE
+)
+COMPANY_LABEL_REGEX = re.compile(
+    r'Company\s*:\s*\n?\s*([A-Z][A-Za-z0-9&.,\s]+(?:Private\s+Limited|Limited|Ltd|LLP|Pvt\.?\s*Ltd\.?|Inc\.?|Corp\.?))',
+    re.IGNORECASE
+)
+# General Indian address pattern: triggered only after an "Address:" label.
+# Looks for content spanning up to 3 lines that contains a PIN code (6 digits).
+ADDRESS_LABEL_REGEX = re.compile(
+    r'Address\s*:\s*\n?\s*(.+?(?:\n.+?){0,2}\b\d{6}\b[^\n]*)',
+    re.IGNORECASE | re.DOTALL
+)
+
+
 def detect_context_pii(text: str) -> List[Dict[str, Any]]:
-    """Detect contextual PII such as Date of Birth (DOB) and Addresses."""
+    """Detect contextual PII such as Date of Birth (DOB), Addresses, Names and Companies via labels."""
     detections = []
 
     # 1. Date of Birth (DOB) via context keyword
@@ -227,6 +245,43 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
                 "start": match.start(),
                 "end": match.end(),
                 "source": "context"
+            })
+
+    # 3. Label-based Address: "Address:" followed by content with a 6-digit PIN code
+    for match in ADDRESS_LABEL_REGEX.finditer(text):
+        addr_text = match.group(1).strip()
+        # Avoid capturing addresses already caught by KNOWN_ADDRESSES
+        if addr_text and not any(ka.lower() in addr_text.lower() for ka in KNOWN_ADDRESSES):
+            detections.append({
+                "text": addr_text,
+                "type": "ADDRESS",
+                "start": match.start(1),
+                "end": match.end(1),
+                "source": "context_label"
+            })
+
+    # 4. Label-based Person: "Full Name:" or "Name:" followed by a capitalized name
+    for match in NAME_LABEL_REGEX.finditer(text):
+        name_text = match.group(1).strip()
+        if name_text and name_text.lower() not in FALSE_PERSONS:
+            detections.append({
+                "text": name_text,
+                "type": "PERSON",
+                "start": match.start(1),
+                "end": match.end(1),
+                "source": "context_label"
+            })
+
+    # 5. Label-based Organization: "Company:" followed by a company name
+    for match in COMPANY_LABEL_REGEX.finditer(text):
+        org_text = match.group(1).strip()
+        if org_text and org_text.lower() not in FALSE_ORGS:
+            detections.append({
+                "text": org_text,
+                "type": "ORGANIZATION",
+                "start": match.start(1),
+                "end": match.end(1),
+                "source": "context_label"
             })
 
     return detections

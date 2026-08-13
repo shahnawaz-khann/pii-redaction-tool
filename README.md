@@ -67,7 +67,7 @@ pii-redaction-tool/
 │   ├── main.py                          # Core end-to-end pipeline runner
 │   └── evaluator.py                     # Token-level evaluation & report generator
 ├── tests/
-│   └── test_detectors.py                # Automated Pytest suite (15 unit tests)
+│   └── test_detectors.py                # Automated Pytest suite (20 unit tests)
 ├── .gitignore                           # Git ignore rules
 ├── README.md                            # Project documentation
 ├── app.py                               # Lightweight Streamlit demo interface

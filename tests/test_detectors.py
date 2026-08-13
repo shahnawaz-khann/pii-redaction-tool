@@ -123,3 +123,63 @@ def test_distinct_phones_have_different_replacements():
     phone1_rep = redactor.get_replacement("+91 9876543210", "PHONE")
     phone2_rep = redactor.get_replacement("+91 20 45053237", "PHONE")
     assert phone1_rep != phone2_rep
+
+
+# --- Tests for previously-failing synthetic document cases ---
+
+def test_label_based_name_detection():
+    """Names after 'Full Name:' or 'Name:' labels must be detected."""
+    text = "Full Name: Rahul Sharma\nName: Priya Mehta"
+    detections = detect_pii(text)
+    person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
+    assert any("Rahul Sharma" in t for t in person_texts), "Rahul Sharma not detected"
+    assert any("Priya Mehta" in t for t in person_texts), "Priya Mehta not detected"
+
+
+def test_label_based_organization_detection():
+    """Company name after 'Company:' label must be detected."""
+    text = "Company:\nSharma Technologies Private Limited"
+    detections = detect_pii(text)
+    org_texts = [d['text'] for d in detections if d['type'] == 'ORGANIZATION']
+    assert any("Sharma Technologies" in t for t in org_texts), "Sharma Technologies not detected"
+
+
+def test_label_based_address_detection():
+    """Address with Indian PIN code after 'Address:' label must be detected."""
+    text = "Address:\n42 Green Park Road, Sector 18,\nNoida, Uttar Pradesh 201301, India"
+    detections = detect_pii(text)
+    addr_texts = [d['text'] for d in detections if d['type'] == 'ADDRESS']
+    assert len(addr_texts) >= 1, "Address not detected"
+    assert any("201301" in t for t in addr_texts), "PIN code not found in detected address"
+
+
+def test_credit_card_with_spaces():
+    """Credit card number with spaces must pass Luhn and be detected."""
+    text = "Credit Card: 4111 1111 1111 1111"
+    assert is_luhn_valid("4111 1111 1111 1111")
+    detections = detect_pii(text)
+    card_dets = [d for d in detections if d['type'] == 'CREDIT_CARD']
+    assert len(card_dets) == 1, f"Credit card not detected. Got: {detections}"
+
+
+def test_all_9_categories_synthetic():
+    """Synthetic document must produce detections for all 9 PII categories."""
+    text = (
+        "Full Name: Rahul Sharma\n"
+        "Email: rahul.sharma@example.com\n"
+        "Phone: +91 9876543210\n"
+        "Date of Birth: 15/08/2001\n"
+        "Address:\n"
+        "42 Green Park Road, Sector 18,\n"
+        "Noida, Uttar Pradesh 201301, India\n"
+        "Company:\n"
+        "Sharma Technologies Private Limited\n"
+        "SSN: 123-45-6789\n"
+        "Credit Card: 4111 1111 1111 1111\n"
+        "IP Address: 192.168.1.25\n"
+    )
+    detections = detect_pii(text)
+    found_types = {d['type'] for d in detections}
+    required = {"PERSON", "EMAIL", "PHONE", "DOB", "ADDRESS", "ORGANIZATION", "SSN", "CREDIT_CARD", "IP_ADDRESS"}
+    missing = required - found_types
+    assert not missing, f"Missing categories: {missing}"
