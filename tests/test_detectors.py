@@ -33,7 +33,6 @@ def test_ssn_detection():
 
 
 def test_credit_card_detection():
-    # Valid Visa card matching Luhn algorithm
     valid_card = "4111 1111 1111 1111"
     text = f"Payment method: {valid_card}"
     assert is_luhn_valid(valid_card)
@@ -101,7 +100,6 @@ def test_organization_detection():
 def test_non_pii_order_id_not_redacted():
     text = "Order ID: 123456 with 50 shares."
     detections = detect_pii(text)
-    # Order ID should not match phone, email, SSN, CC, or IP
     assert len(detections) == 0
 
 
@@ -111,3 +109,17 @@ def test_replacement_consistency():
     rep2 = redactor.get_replacement("Rashi Patil", "PERSON")
     assert rep1 == rep2
     assert rep1 != "Rashi Patil"
+
+
+def test_replacement_case_normalization():
+    redactor = PIIRedactor(seed=42)
+    rep_title = redactor.get_replacement("Rashi Patil", "PERSON")
+    rep_upper = redactor.get_replacement("RASHI PATIL", "PERSON")
+    assert rep_title.upper() == rep_upper
+
+
+def test_distinct_phones_have_different_replacements():
+    redactor = PIIRedactor(seed=42)
+    phone1_rep = redactor.get_replacement("+91 9876543210", "PHONE")
+    phone2_rep = redactor.get_replacement("+91 20 45053237", "PHONE")
+    assert phone1_rep != phone2_rep

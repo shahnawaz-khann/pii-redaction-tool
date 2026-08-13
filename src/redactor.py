@@ -10,10 +10,6 @@ from faker import Faker
 import docx
 from typing import Dict, List, Any
 
-# Initialize deterministic Faker
-fake = Faker('en_IN')
-Faker.seed(42)
-
 
 class PIIRedactor:
     """Manages consistent fake replacement generation and DOCX document redaction."""
@@ -22,34 +18,37 @@ class PIIRedactor:
         self.fake = Faker('en_IN')
         Faker.seed(seed)
         self.replacement_map: Dict[str, str] = {}
-        self.person_name_map: Dict[str, str] = {}
+        self.canonical_person_map: Dict[str, str] = {}
+        self.canonical_org_map: Dict[str, str] = {}
+        self.canonical_phone_map: Dict[str, str] = {}
+        self.canonical_address_map: Dict[str, str] = {}
 
     def get_replacement(self, original_text: str, entity_type: str) -> str:
-        """Get or create consistent fake replacement for original entity."""
+        """
+        Get or create consistent fake replacement for an entity.
+        Normalizes keys by lowercase/strip so casing variations share the same identity.
+        """
         if original_text in self.replacement_map:
             return self.replacement_map[original_text]
 
+        norm_key = original_text.strip().lower()
         replacement = ""
 
         if entity_type == "PERSON":
-            fake_name = self.fake.name()
-            # Retain uppercase if original was uppercase
-            if original_text.isupper():
-                replacement = fake_name.upper()
-            else:
-                replacement = fake_name
-            self.person_name_map[original_text.lower()] = replacement
+            if norm_key not in self.canonical_person_map:
+                self.canonical_person_map[norm_key] = self.fake.name()
+            fake_base = self.canonical_person_map[norm_key]
+            replacement = fake_base.upper() if original_text.isupper() else fake_base
 
         elif entity_type == "EMAIL":
             # Attempt consistent name-email mapping
             parts = original_text.split('@')
             username = parts[0]
-            domain = parts[1] if len(parts) > 1 else "example.com"
-
             matched_fake_username = None
-            for orig_name_lower, fake_name in self.person_name_map.items():
-                first_name = orig_name_lower.split()[0]
-                if first_name in username.lower():
+
+            for person_norm_key, fake_name in self.canonical_person_map.items():
+                first_name = person_norm_key.split()[0]
+                if first_name and first_name in username.lower():
                     clean_fake = re.sub(r'[^a-zA-Z]', '', fake_name.lower())
                     matched_fake_username = clean_fake
                     break
@@ -57,21 +56,30 @@ class PIIRedactor:
             if matched_fake_username:
                 replacement = f"{matched_fake_username}@example.com"
             else:
-                fake_user = self.fake.user_name()
+                fake_user = re.sub(r'[^a-zA-Z0-9]', '', self.fake.user_name().lower())
                 replacement = f"{fake_user}@example.com"
 
         elif entity_type == "PHONE":
-            replacement = "+91 98765 43210"
-
-        elif entity_type == "ADDRESS":
-            replacement = "123, Sample Commercial Complex, MG Road, Pune – 411 001, Maharashtra, India"
+            # Distinct fake phone number per unique original phone
+            if norm_key not in self.canonical_phone_map:
+                # Generate unique Indian format mobile/landline
+                random_digits = self.fake.msisdn()[-8:]
+                self.canonical_phone_map[norm_key] = f"+91 98{random_digits}"
+            replacement = self.canonical_phone_map[norm_key]
 
         elif entity_type == "ORGANIZATION":
-            fake_corp = f"{self.fake.company()} Private Limited"
-            if original_text.isupper():
-                replacement = fake_corp.upper()
-            else:
-                replacement = fake_corp
+            if norm_key not in self.canonical_org_map:
+                self.canonical_org_map[norm_key] = f"{self.fake.company()} Private Limited"
+            fake_org = self.canonical_org_map[norm_key]
+            replacement = fake_org.upper() if original_text.isupper() else fake_org
+
+        elif entity_type == "ADDRESS":
+            if norm_key not in self.canonical_address_map:
+                self.canonical_address_map[norm_key] = (
+                    f"{self.fake.building_number()}, Sample Commercial Complex, MG Road, "
+                    f"Pune – 411 001, Maharashtra, India"
+                )
+            replacement = self.canonical_address_map[norm_key]
 
         elif entity_type == "SSN":
             replacement = "000-00-0000"
@@ -103,6 +111,8 @@ class PIIRedactor:
         """
         Replace mapped PII in a paragraph while preserving DOCX formatting runs.
         Handles both intra-run and cross-run text occurrences.
+        Note: When an entity spans multiple formatting runs, text is consolidated
+        into the initial run to preserve layout, with a minor tradeoff on intra-entity run styles.
         """
         if not paragraph.text or not self.replacement_map:
             return 0
@@ -119,18 +129,18 @@ class PIIRedactor:
         if not present_items:
             return 0
 
-        # Simple & safe approach: check if single run contains text
+        # Fast path: check if single run contains text
         for orig, fake_val in present_items:
             for run in paragraph.runs:
                 if orig in run.text:
                     run.text = run.text.replace(orig, fake_val)
                     replacements_made += 1
 
-        # Check if text was split across runs and not fully replaced
+        # Handle text split across runs
         updated_text = paragraph.text
         for orig, fake_val in present_items:
-            if orig in updated_text:
-                # Rebuild paragraph text in first run, clear subsequent runs
+            if orig in updated_text and paragraph.runs:
+                # Merge consolidated text in first run and clear remaining runs
                 paragraph.runs[0].text = updated_text.replace(orig, fake_val)
                 for run in paragraph.runs[1:]:
                     run.text = ""

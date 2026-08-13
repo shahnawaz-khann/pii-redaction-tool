@@ -78,10 +78,16 @@ def run_pipeline(
         print(f"      Error: Output document validation failed: {e}")
         sys.exit(1)
 
-    # 5. Run Evaluation
-    print("\n[5/5] Running evaluation against ground truth...")
+    # 5. Run Token-Level Evaluation
+    print("\n[5/5] Running token-level evaluation against ground truth...")
     if os.path.exists(ground_truth_path):
         eval_results = evaluate_redaction(input_path, ground_truth_path, report_path)
+        print(f"      - Total Tokens      : {eval_results['total_tokens']:,}")
+        print(f"      - True Positives (TP): {eval_results['tp']:,} tokens")
+        print(f"      - False Positives (FP): {eval_results['fp']:,} tokens")
+        print(f"      - False Negatives (FN): {eval_results['fn']:,} tokens")
+        print(f"      - True Negatives (TN): {eval_results['tn']:,} tokens")
+        print(f"      - Overall Accuracy  : {eval_results['overall_accuracy']:.4f} ({eval_results['overall_accuracy']*100:.2f}%)")
         print(f"      - Overall Precision : {eval_results['overall_precision']:.4f} ({eval_results['overall_precision']*100:.2f}%)")
         print(f"      - Overall Recall    : {eval_results['overall_recall']:.4f} ({eval_results['overall_recall']*100:.2f}%)")
         print(f"      - Overall F1 Score  : {eval_results['overall_f1']:.4f} ({eval_results['overall_f1']*100:.2f}%)")
