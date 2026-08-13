@@ -183,3 +183,88 @@ def test_all_9_categories_synthetic():
     required = {"PERSON", "EMAIL", "PHONE", "DOB", "ADDRESS", "ORGANIZATION", "SSN", "CREDIT_CARD", "IP_ADDRESS"}
     missing = required - found_types
     assert not missing, f"Missing categories: {missing}"
+
+
+# --- v2 regression tests ---
+
+def test_name_label_does_not_cross_newline_into_next_label():
+    """Person name captured by 'Full Name:' label must not include the next label line."""
+    text = "Full Name: Aarav Mehta\nEmail: aarav.mehta@example.com"
+    detections = detect_pii(text)
+    person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
+    assert any(t == "Aarav Mehta" for t in person_texts), f"Got: {person_texts}"
+    # Must not swallow 'Email' from the next line
+    assert not any("Email" in t for t in person_texts), f"Name crossed into next label: {person_texts}"
+
+
+def test_address_does_not_swallow_next_section_label():
+    """Address detection must stop before the next 'Label: value' line."""
+    text = (
+        "Address:\n"
+        "28 MG Road, Andheri West,\n"
+        "Mumbai, Maharashtra 400058, India\n"
+        "Credit Card: 5555 5555 5555 4444"
+    )
+    detections = detect_pii(text)
+    addr_texts = [d['text'] for d in detections if d['type'] == 'ADDRESS']
+    assert len(addr_texts) >= 1, "Address not detected"
+    assert all("Credit Card" not in t for t in addr_texts), f"Address swallowed next section: {addr_texts}"
+
+
+def test_second_credit_card_not_lost_due_to_address_overlap():
+    """Both credit cards must be detected independently when they follow separate address blocks."""
+    text = (
+        "Address:\n"
+        "17 Lake View Road, Sector 15,\n"
+        "Gurugram, Haryana 122001, India\n"
+        "Credit Card: 4111 1111 1111 1111\n"
+        "Address:\n"
+        "28 MG Road, Andheri West,\n"
+        "Mumbai, Maharashtra 400058, India\n"
+        "Credit Card: 5555 5555 5555 4444"
+    )
+    detections = detect_pii(text)
+    card_dets = [d for d in detections if d['type'] == 'CREDIT_CARD']
+    card_texts = [d['text'] for d in card_dets]
+    assert any("4111" in t for t in card_texts), f"First card missing: {card_texts}"
+    assert any("5555" in t for t in card_texts), f"Second card missing: {card_texts}"
+
+
+def test_v2_full_synthetic_all_9_categories():
+    """Full v2 synthetic document must detect all 9 PII categories cleanly."""
+    text = (
+        "Full Name: Aarav Mehta\n"
+        "Email: aarav.mehta@example.com\n"
+        "Phone: +91 9876543210\n"
+        "Date of Birth: 15/08/2001\n"
+        "Address:\n"
+        "17 Lake View Road, Sector 15,\n"
+        "Gurugram, Haryana 122001, India\n"
+        "Company:\n"
+        "Sharma Technologies Private Limited\n"
+        "SSN: 123-45-6789\n"
+        "Credit Card: 4111 1111 1111 1111\n"
+        "IP Address: 192.168.1.25\n"
+        "Name: Neha Kapoor\n"
+        "Email: neha.kapoor@example.com\n"
+        "Phone: +91 9123456789\n"
+        "Address:\n"
+        "28 MG Road, Andheri West,\n"
+        "Mumbai, Maharashtra 400058, India\n"
+        "Credit Card: 5555 5555 5555 4444\n"
+    )
+    detections = detect_pii(text)
+    found_types = {d['type'] for d in detections}
+    # All 9 required categories
+    required = {"PERSON", "EMAIL", "PHONE", "DOB", "ADDRESS", "ORGANIZATION", "SSN", "CREDIT_CARD", "IP_ADDRESS"}
+    missing = required - found_types
+    assert not missing, f"Missing categories in v2: {missing}"
+    # Specific names detected
+    person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
+    assert any("Aarav Mehta" in t for t in person_texts), "Aarav Mehta not found"
+    assert any("Neha Kapoor" in t for t in person_texts), "Neha Kapoor not found"
+    # Both credit cards detected
+    card_texts = [d['text'] for d in detections if d['type'] == 'CREDIT_CARD']
+    assert any("4111" in t for t in card_texts), "First card (4111) not detected"
+    assert any("5555" in t for t in card_texts), "Second card (5555) not detected"
+

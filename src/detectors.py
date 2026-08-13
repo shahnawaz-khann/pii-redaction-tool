@@ -194,21 +194,24 @@ def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
     return detections
 
 
-# Label-based context patterns — only fire when an explicit label precedes the value
-# Matches the value on the same line or the next non-empty line after the label.
+# Label-based context patterns — only fire when an explicit label precedes the value.
+# NOTE: use [ \t]+ (not \s+) between name parts so the pattern cannot cross a newline
+#       into the next line's label (e.g. "Aarav Mehta\nEmail:" was being captured).
 NAME_LABEL_REGEX = re.compile(
-    r'(?:Full\s+Name|Name)\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+    r'(?:Full[ \t]+Name|Name)\s*:\s*([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)',
     re.IGNORECASE
 )
 COMPANY_LABEL_REGEX = re.compile(
-    r'Company\s*:\s*\n?\s*([A-Z][A-Za-z0-9&.,\s]+(?:Private\s+Limited|Limited|Ltd|LLP|Pvt\.?\s*Ltd\.?|Inc\.?|Corp\.?))',
+    r'Company\s*:\s*\n?\s*([A-Z][A-Za-z0-9&.,\s]+(?:Private\s+Limited|Limited|Ltd|LLP|Pvt\.?\s*Ltd\.?|Inc\.?|Corp\.))',
     re.IGNORECASE
 )
 # General Indian address pattern: triggered only after an "Address:" label.
-# Matches up to 3 lines (no DOTALL — explicit newline crossing) containing a 6-digit PIN code.
-# This prevents greedy multi-paragraph capture in real documents.
+# Captures the first line plus up to 2 continuation lines.
+# Each continuation line is accepted only if it does NOT look like a new label
+# (pattern: optional spaces, then word-chars, then colon, e.g. "Credit Card:" or "Company:").
+_LABEL_LINE = re.compile(r'^\s*[\w][\w\s]*:', re.MULTILINE)
 ADDRESS_LABEL_REGEX = re.compile(
-    r'Address\s*:\s*\n?\s*([^\n]+(?:\n[^\n]+){0,2})',
+    r'Address\s*:\s*\n?\s*([^\n]+(?:\n(?![\w][\w\s]*:)[^\n]+){0,2})',
     re.IGNORECASE
 )
 
