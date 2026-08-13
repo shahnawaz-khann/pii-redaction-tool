@@ -1,0 +1,9 @@
+input/
+Red Herring Prospectus.docx
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.pytest_cache/
+*.log

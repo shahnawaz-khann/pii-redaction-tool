@@ -1,0 +1,506 @@
+{
+  "document": "Red Herring Prospectus.docx",
+  "description": "Verified PII instances extracted from manual inspection and regex/NER validation.",
+  "entities": [
+    {
+      "text": "cs.connect@kshinternational.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "Sarthak.malvadkar@kshinterantional.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "ksh.ipo@nuvama.com",
+      "type": "EMAIL",
+      "count": 6
+    },
+    {
+      "text": "customerservice.mb@nuvama.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "sheetal.parab@nuvama.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "prakash.boricha@nuvama.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "ksh@icicisecurities.com",
+      "type": "EMAIL",
+      "count": 8
+    },
+    {
+      "text": "customercare@icicisecurities.com",
+      "type": "EMAIL",
+      "count": 6
+    },
+    {
+      "text": "kshinternational.ipo@in.mpms.mufg.com",
+      "type": "EMAIL",
+      "count": 12
+    },
+    {
+      "text": "hingnetare@gmail.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "ipo@trilegal.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "parag.pansare@kirtanepandit.com",
+      "type": "EMAIL",
+      "count": 2
+    },
+    {
+      "text": "ashishmp@federalbank.co.in",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "tushar.gavankar@hdfcbank.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "eric.bacha@hdfcbank.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "siddharth.jadhav@hdfcbank.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "sachin.gawade@hdfcbank.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "pravin.teli2@hdfcbank.com",
+      "type": "EMAIL",
+      "count": 3
+    },
+    {
+      "text": "manisha.shukla@hdfcbank.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "rm6.ifbpune@sbi.co.in",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "Ipocmg@icicibank.com",
+      "type": "EMAIL",
+      "count": 2
+    },
+    {
+      "text": "cherag.gyara@icicibank.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "anand.soni@bajajfinserv.in",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "sharmila.joshi@indusind.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "hitesh.ramani@citi.com",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "pro@eximbankindia.in",
+      "type": "EMAIL",
+      "count": 1
+    },
+    {
+      "text": "+91 22 40094400",
+      "type": "PHONE",
+      "count": 3
+    },
+    {
+      "text": "+91-20-26234000",
+      "type": "PHONE",
+      "count": 1
+    },
+    {
+      "text": "022-68052182",
+      "type": "PHONE",
+      "count": 2
+    },
+    {
+      "text": "+91 22 30752914",
+      "type": "PHONE",
+      "count": 3
+    },
+    {
+      "text": "+91 22 30752928",
+      "type": "PHONE",
+      "count": 3
+    },
+    {
+      "text": "+91 22 30752929",
+      "type": "PHONE",
+      "count": 3
+    },
+    {
+      "text": "Kushal Subbayya Hegde",
+      "type": "PERSON",
+      "count": 21
+    },
+    {
+      "text": "KUSHAL SUBBAYYA HEGDE",
+      "type": "PERSON",
+      "count": 23
+    },
+    {
+      "text": "Kushal Hegde",
+      "type": "PERSON",
+      "count": 62
+    },
+    {
+      "text": "Pushpa Kushal Hegde",
+      "type": "PERSON",
+      "count": 15
+    },
+    {
+      "text": "PUSHPA KUSHAL HEGDE",
+      "type": "PERSON",
+      "count": 23
+    },
+    {
+      "text": "Pushpa Hegde",
+      "type": "PERSON",
+      "count": 2
+    },
+    {
+      "text": "Rajesh Kushal Hegde",
+      "type": "PERSON",
+      "count": 19
+    },
+    {
+      "text": "RAJESH KUSHAL HEGDE",
+      "type": "PERSON",
+      "count": 23
+    },
+    {
+      "text": "Rajesh Hegde",
+      "type": "PERSON",
+      "count": 7
+    },
+    {
+      "text": "Rohit Kushal Hegde",
+      "type": "PERSON",
+      "count": 18
+    },
+    {
+      "text": "ROHIT KUSHAL HEGDE",
+      "type": "PERSON",
+      "count": 23
+    },
+    {
+      "text": "Rohit Hegde",
+      "type": "PERSON",
+      "count": 4
+    },
+    {
+      "text": "Rakhi Girija Shetty",
+      "type": "PERSON",
+      "count": 14
+    },
+    {
+      "text": "RAKHI GIRIJA SHETTY",
+      "type": "PERSON",
+      "count": 15
+    },
+    {
+      "text": "Sarthak Malvadkar",
+      "type": "PERSON",
+      "count": 7
+    },
+    {
+      "text": "Kishan Rastogi",
+      "type": "PERSON",
+      "count": 10
+    },
+    {
+      "text": "Abhijit Diwan",
+      "type": "PERSON",
+      "count": 10
+    },
+    {
+      "text": "Shanti Gopalkrishnan",
+      "type": "PERSON",
+      "count": 5
+    },
+    {
+      "text": "Sandesh Bhagwat",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Amod Joshi",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Eric Bacha",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Tushar Gavankar",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Varun Badai",
+      "type": "PERSON",
+      "count": 2
+    },
+    {
+      "text": "Prakash Boricha",
+      "type": "PERSON",
+      "count": 1
+    },
+    {
+      "text": "Sachin Gawade",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Siddharth Jadhav",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Cherag Gyara",
+      "type": "PERSON",
+      "count": 1
+    },
+    {
+      "text": "Pravin Teli",
+      "type": "PERSON",
+      "count": 3
+    },
+    {
+      "text": "Hitesh Ramani",
+      "type": "PERSON",
+      "count": 1
+    },
+    {
+      "text": "Sharmila Joshi",
+      "type": "PERSON",
+      "count": 1
+    },
+    {
+      "text": "Anand Soni",
+      "type": "PERSON",
+      "count": 1
+    },
+    {
+      "text": "Manisha Shukla",
+      "type": "PERSON",
+      "count": 1
+    },
+    {
+      "text": "Ajay Menon",
+      "type": "PERSON",
+      "count": 2
+    },
+    {
+      "text": "Karunakar Hegde",
+      "type": "PERSON",
+      "count": 4
+    },
+    {
+      "text": "KSH International Limited",
+      "type": "ORGANIZATION",
+      "count": 5
+    },
+    {
+      "text": "KSH INTERNATIONAL LIMITED",
+      "type": "ORGANIZATION",
+      "count": 10
+    },
+    {
+      "text": "Bhandary Metal Extrusion Private Limited",
+      "type": "ORGANIZATION",
+      "count": 3
+    },
+    {
+      "text": "KSH International Private Limited",
+      "type": "ORGANIZATION",
+      "count": 3
+    },
+    {
+      "text": "Nuvama Wealth Management Limited",
+      "type": "ORGANIZATION",
+      "count": 7
+    },
+    {
+      "text": "ICICI Securities Limited",
+      "type": "ORGANIZATION",
+      "count": 9
+    },
+    {
+      "text": "MUFG Intime India Private Limited",
+      "type": "ORGANIZATION",
+      "count": 6
+    },
+    {
+      "text": "Link Intime India Private Limited",
+      "type": "ORGANIZATION",
+      "count": 6
+    },
+    {
+      "text": "Trilegal",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "Kirtane & Pandit LLP",
+      "type": "ORGANIZATION",
+      "count": 12
+    },
+    {
+      "text": "The Federal Bank Limited",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "Federal Bank",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "HDFC Bank Limited",
+      "type": "ORGANIZATION",
+      "count": 10
+    },
+    {
+      "text": "HDFC Bank",
+      "type": "ORGANIZATION",
+      "count": 10
+    },
+    {
+      "text": "State Bank of India",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "ICICI Bank Limited",
+      "type": "ORGANIZATION",
+      "count": 5
+    },
+    {
+      "text": "ICICI Bank",
+      "type": "ORGANIZATION",
+      "count": 6
+    },
+    {
+      "text": "IndusInd Bank Limited",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "Citibank N.A.",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "Export-Import Bank of India",
+      "type": "ORGANIZATION",
+      "count": 1
+    },
+    {
+      "text": "DHAULAGIRI FAMILY TRUST",
+      "type": "ORGANIZATION",
+      "count": 15
+    },
+    {
+      "text": "EVEREST FAMILY TRUST",
+      "type": "ORGANIZATION",
+      "count": 7
+    },
+    {
+      "text": "MAKALU FAMILY TRUST",
+      "type": "ORGANIZATION",
+      "count": 15
+    },
+    {
+      "text": "BROAD FAMILY TRUST",
+      "type": "ORGANIZATION",
+      "count": 15
+    },
+    {
+      "text": "ANNAPURNA FAMILY TRUST",
+      "type": "ORGANIZATION",
+      "count": 15
+    },
+    {
+      "text": "KANCHENJUNGA FAMILY TRUST",
+      "type": "ORGANIZATION",
+      "count": 15
+    },
+    {
+      "text": "11/3, 11/4 and 11/5, Village Birdewadi, Chakan Taluka - Khed, Pune \u2013 410 501, Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 4
+    },
+    {
+      "text": "201, Tower 2, Montreal Business Centre, Off Pallod Farms, Baner, Pune \u2013 411 045, Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 3
+    },
+    {
+      "text": "102, Sai Complex Shaniwar Peth, Pune \u2013 411 030 Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 1
+    },
+    {
+      "text": "3 Prabhat Road, opposite PYC basketball court, Deccan Gymkhana, Pune \u2013 411 004 Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 1
+    },
+    {
+      "text": "5, Chakan Industrial Area, Phase II, Village Khalumbre, Taluka Khed, Pune \u2013 410 501, Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 1
+    },
+    {
+      "text": "F-223, Supa Parner Industrial Park, Mauje Palve Khurd, Taluka Parner, Dist \u2013 Ahmednagar, Maharashtra \u2013 414 301",
+      "type": "ADDRESS",
+      "count": 1
+    },
+    {
+      "text": "J-25, Taloja Industrial Area, Village Padghe, Taluka Panvel, Raigad \u2013 410 208, Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 1
+    },
+    {
+      "text": "12 Buena Monte, NCL co-operative housing society, Panchvati, Pashan, Pune \u2013 411 008, Maharashtra, India",
+      "type": "ADDRESS",
+      "count": 1
+    }
+  ]
+}
