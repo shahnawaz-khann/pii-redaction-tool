@@ -39,7 +39,9 @@ FALSE_PERSONS = {
     'share transfer agents', 'parents branch', 'rajesh branch', 'sangeeta branch',
     'offer price', 'b.  non-gaap measures', 'key managerial', 'senior management',
     'syndicate members', 'monitoring agency', 'statutory auditors', 'book running lead managers',
-    'non-institutional portion', 'designated stock exchange', 'anchor investor portion'
+    'non-institutional portion', 'designated stock exchange', 'anchor investor portion',
+    'pii redaction tool', 'test document', 'customer information', 'customer profile',
+    'additional contact', 'contact information', 'profile'
 }
 
 FALSE_ORGS = {
@@ -336,7 +338,11 @@ def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
 
                 if ent.label_ == "PERSON":
                     if lower_text not in FALSE_PERSONS and len(cleaned_text) > 3:
-                        if not re.search(r'\d', cleaned_text) and any(c.isupper() for c in cleaned_text):
+                        if ('\n' not in cleaned_text
+                                and not any(ch in cleaned_text for ch in ':-/\\')
+                                and len(cleaned_text.split()) <= 4
+                                and not re.search(r'\d', cleaned_text)
+                                and any(c.isupper() for c in cleaned_text)):
                             detections.append({
                                 "text": cleaned_text,
                                 "type": "PERSON",

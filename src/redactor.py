@@ -22,11 +22,50 @@ class PIIRedactor:
         self.canonical_org_map: Dict[str, str] = {}
         self.canonical_phone_map: Dict[str, str] = {}
         self.canonical_address_map: Dict[str, str] = {}
+        self.canonical_card_map: Dict[str, str] = {}
+        self.canonical_ssn_map: Dict[str, str] = {}
+        self.canonical_dob_map: Dict[str, str] = {}
+        self.canonical_ip_map: Dict[str, str] = {}
+
+    def _generate_fake_credit_card(self, original_text: str) -> str:
+        """Generate a deterministic, valid Luhn fake credit card that differs from original."""
+        clean_digits = re.sub(r'\D', '', original_text)
+        num_digits = len(clean_digits) if 13 <= len(clean_digits) <= 19 else 16
+
+        # Deterministically generate a valid Luhn card that differs from original
+        prefix = "5424" if clean_digits.startswith("4") else "4532"
+        middle = self.fake.numerify(text="########")
+        partial = prefix + middle
+        sub = (partial + self.fake.numerify(text="###"))[:num_digits - 1]
+
+        # Calculate Luhn check digit
+        digits = [int(c) for c in sub]
+        checksum = 0
+        reverse_digits = digits[::-1]
+        for i, digit in enumerate(reverse_digits):
+            if i % 2 == 0:
+                doubled = digit * 2
+                checksum += doubled - 9 if doubled > 9 else doubled
+            else:
+                checksum += digit
+        check_digit = (10 - (checksum % 10)) % 10
+        fake_raw = sub + str(check_digit)
+
+        # Preserve original spacing / hyphenation style
+        if " " in original_text:
+            chunks = [fake_raw[i:i+4] for i in range(0, len(fake_raw), 4)]
+            return " ".join(chunks)
+        elif "-" in original_text:
+            chunks = [fake_raw[i:i+4] for i in range(0, len(fake_raw), 4)]
+            return "-".join(chunks)
+        else:
+            return fake_raw
 
     def get_replacement(self, original_text: str, entity_type: str) -> str:
         """
         Get or create consistent fake replacement for an entity.
         Normalizes keys by lowercase/strip so casing variations share the same identity.
+        Ensures replacement is never identical to the original sensitive value.
         """
         if original_text in self.replacement_map:
             return self.replacement_map[original_text]
@@ -36,12 +75,14 @@ class PIIRedactor:
 
         if entity_type == "PERSON":
             if norm_key not in self.canonical_person_map:
-                self.canonical_person_map[norm_key] = self.fake.name()
+                fake_name = self.fake.name()
+                if fake_name == original_text:
+                    fake_name = "Aryan Maharaj"
+                self.canonical_person_map[norm_key] = fake_name
             fake_base = self.canonical_person_map[norm_key]
             replacement = fake_base.upper() if original_text.isupper() else fake_base
 
         elif entity_type == "EMAIL":
-            # Attempt consistent name-email mapping
             parts = original_text.split('@')
             username = parts[0]
             matched_fake_username = None
@@ -60,38 +101,68 @@ class PIIRedactor:
                 replacement = f"{fake_user}@example.com"
 
         elif entity_type == "PHONE":
-            # Distinct fake phone number per unique original phone
             if norm_key not in self.canonical_phone_map:
-                # Generate unique Indian format mobile/landline
                 random_digits = self.fake.msisdn()[-8:]
                 self.canonical_phone_map[norm_key] = f"+91 98{random_digits}"
             replacement = self.canonical_phone_map[norm_key]
 
         elif entity_type == "ORGANIZATION":
             if norm_key not in self.canonical_org_map:
-                self.canonical_org_map[norm_key] = f"{self.fake.company()} Private Limited"
+                fake_org = f"{self.fake.company()} Private Limited"
+                if fake_org == original_text:
+                    fake_org = "Sample Enterprises Private Limited"
+                self.canonical_org_map[norm_key] = fake_org
             fake_org = self.canonical_org_map[norm_key]
             replacement = fake_org.upper() if original_text.isupper() else fake_org
 
         elif entity_type == "ADDRESS":
             if norm_key not in self.canonical_address_map:
-                self.canonical_address_map[norm_key] = (
-                    f"{self.fake.building_number()}, Sample Commercial Complex, MG Road, "
-                    f"Pune – 411 001, Maharashtra, India"
-                )
+                street = self.fake.street_name()
+                city = self.fake.city()
+                bldg = self.fake.building_number()
+                fake_addr = f"{bldg}, {street}, {city} – 411 001, Maharashtra, India"
+                if fake_addr == original_text:
+                    fake_addr = "101, Sample Commercial Complex, MG Road, Pune – 411 001, Maharashtra, India"
+                self.canonical_address_map[norm_key] = fake_addr
             replacement = self.canonical_address_map[norm_key]
 
         elif entity_type == "SSN":
-            replacement = "000-00-0000"
+            if norm_key not in self.canonical_ssn_map:
+                fake_ssn = self.fake.ssn()
+                if fake_ssn == original_text:
+                    fake_ssn = "987-65-4321"
+                self.canonical_ssn_map[norm_key] = fake_ssn
+            replacement = self.canonical_ssn_map[norm_key]
 
         elif entity_type == "CREDIT_CARD":
-            replacement = "4111 1111 1111 1111"
+            if norm_key not in self.canonical_card_map:
+                fake_card = self._generate_fake_credit_card(original_text)
+                if fake_card == original_text:
+                    fake_card = "5424 1234 5678 9012" if " " in original_text else "5424123456789012"
+                self.canonical_card_map[norm_key] = fake_card
+            replacement = self.canonical_card_map[norm_key]
 
         elif entity_type == "IP_ADDRESS":
-            replacement = "10.0.0.1"
+            if norm_key not in self.canonical_ip_map:
+                fake_ip = self.fake.ipv4_private()
+                if fake_ip == original_text:
+                    fake_ip = "10.0.0.2"
+                self.canonical_ip_map[norm_key] = fake_ip
+            replacement = self.canonical_ip_map[norm_key]
 
         elif entity_type == "DOB":
-            replacement = "01/01/1990"
+            if norm_key not in self.canonical_dob_map:
+                fake_d = self.fake.date_of_birth(minimum_age=22, maximum_age=60)
+                if "/" in original_text:
+                    fake_dob = fake_d.strftime("%d/%m/%Y")
+                elif "-" in original_text:
+                    fake_dob = fake_d.strftime("%d-%m-%Y")
+                else:
+                    fake_dob = fake_d.strftime("%B %d, %Y")
+                if fake_dob == original_text:
+                    fake_dob = "01/01/1995" if "/" in original_text else "01-01-1995"
+                self.canonical_dob_map[norm_key] = fake_dob
+            replacement = self.canonical_dob_map[norm_key]
 
         else:
             replacement = f"[REDACTED_{entity_type}]"
@@ -101,7 +172,6 @@ class PIIRedactor:
 
     def build_replacement_map(self, detections: List[Dict[str, Any]]) -> Dict[str, str]:
         """Build replacement map for all detected entities."""
-        # Sort by length descending so longer strings get replaced first
         sorted_dets = sorted(detections, key=lambda d: len(d['text']), reverse=True)
         for det in sorted_dets:
             self.get_replacement(det['text'], det['type'])
@@ -111,8 +181,6 @@ class PIIRedactor:
         """
         Replace mapped PII in a paragraph while preserving DOCX formatting runs.
         Handles both intra-run and cross-run text occurrences.
-        Note: When an entity spans multiple formatting runs, text is consolidated
-        into the initial run to preserve layout, with a minor tradeoff on intra-entity run styles.
         """
         if not paragraph.text or not self.replacement_map:
             return 0
@@ -140,12 +208,70 @@ class PIIRedactor:
         updated_text = paragraph.text
         for orig, fake_val in present_items:
             if orig in updated_text and paragraph.runs:
-                # Merge consolidated text in first run and clear remaining runs
                 paragraph.runs[0].text = updated_text.replace(orig, fake_val)
                 for run in paragraph.runs[1:]:
                     run.text = ""
                 replacements_made += 1
                 break
+
+        return replacements_made
+
+    def redact_paragraph_list(self, paragraphs: List[Any]) -> int:
+        """
+        Redacts a sequence of paragraphs, handling both single-paragraph
+        and multi-paragraph entities (such as multi-line addresses).
+        """
+        if not paragraphs or not self.replacement_map:
+            return 0
+
+        replacements_made = 0
+
+        # Step 1: Check for multi-line entities that span across consecutive paragraphs
+        for orig, fake_val in sorted(self.replacement_map.items(), key=lambda item: len(item[0]), reverse=True):
+            if "\n" not in orig:
+                continue
+            orig_lines = [l.strip() for l in orig.split("\n") if l.strip()]
+            if len(orig_lines) < 2:
+                continue
+
+            k = len(orig_lines)
+            i = 0
+            while i <= len(paragraphs) - k:
+                # Check if paragraphs[i : i+k] match orig_lines
+                matched = True
+                for j in range(k):
+                    if orig_lines[j] not in paragraphs[i + j].text:
+                        matched = False
+                        break
+
+                if matched:
+                    # In paragraph i, replace orig_lines[0] with fake_val
+                    p_first = paragraphs[i]
+                    if p_first.runs:
+                        p_first.runs[0].text = p_first.text.replace(orig_lines[0], fake_val)
+                        for r in p_first.runs[1:]:
+                            r.text = ""
+                    else:
+                        p_first.text = p_first.text.replace(orig_lines[0], fake_val)
+
+                    # In subsequent paragraphs i+1 .. i+k-1, remove the matched line
+                    for j in range(1, k):
+                        p_sub = paragraphs[i + j]
+                        if p_sub.runs:
+                            p_sub.runs[0].text = p_sub.text.replace(orig_lines[j], "").strip()
+                            for r in p_sub.runs[1:]:
+                                r.text = ""
+                        else:
+                            p_sub.text = p_sub.text.replace(orig_lines[j], "").strip()
+
+                    replacements_made += 1
+                    i += k
+                else:
+                    i += 1
+
+        # Step 2: Handle remaining single-paragraph replacements
+        for p in paragraphs:
+            replacements_made += self.replace_text_in_paragraph(p)
 
         return replacements_made
 
@@ -164,24 +290,20 @@ class PIIRedactor:
         total_replacements = 0
 
         # 1. Process main paragraphs
-        for p in doc.paragraphs:
-            total_replacements += self.replace_text_in_paragraph(p)
+        total_replacements += self.redact_paragraph_list(doc.paragraphs)
 
         # 2. Process tables
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
-                    for p in cell.paragraphs:
-                        total_replacements += self.replace_text_in_paragraph(p)
+                    total_replacements += self.redact_paragraph_list(cell.paragraphs)
 
         # 3. Process headers and footers
         for section in doc.sections:
             if section.header:
-                for p in section.header.paragraphs:
-                    total_replacements += self.replace_text_in_paragraph(p)
+                total_replacements += self.redact_paragraph_list(section.header.paragraphs)
             if section.footer:
-                for p in section.footer.paragraphs:
-                    total_replacements += self.replace_text_in_paragraph(p)
+                total_replacements += self.redact_paragraph_list(section.footer.paragraphs)
 
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)

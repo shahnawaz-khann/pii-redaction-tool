@@ -4,6 +4,9 @@ Pytest unit tests for PII detectors, false positive suppression, and replacement
 """
 
 import pytest
+import docx
+import tempfile
+import os
 from src.detectors import detect_pii, is_luhn_valid, validate_ip
 from src.redactor import PIIRedactor
 
@@ -125,7 +128,7 @@ def test_distinct_phones_have_different_replacements():
     assert phone1_rep != phone2_rep
 
 
-# --- Tests for previously-failing synthetic document cases ---
+# --- Tests for synthetic document cases ---
 
 def test_label_based_name_detection():
     """Names after 'Full Name:' or 'Name:' labels must be detected."""
@@ -193,7 +196,6 @@ def test_name_label_does_not_cross_newline_into_next_label():
     detections = detect_pii(text)
     person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
     assert any(t == "Aarav Mehta" for t in person_texts), f"Got: {person_texts}"
-    # Must not swallow 'Email' from the next line
     assert not any("Email" in t for t in person_texts), f"Name crossed into next label: {person_texts}"
 
 
@@ -255,16 +257,114 @@ def test_v2_full_synthetic_all_9_categories():
     )
     detections = detect_pii(text)
     found_types = {d['type'] for d in detections}
-    # All 9 required categories
     required = {"PERSON", "EMAIL", "PHONE", "DOB", "ADDRESS", "ORGANIZATION", "SSN", "CREDIT_CARD", "IP_ADDRESS"}
     missing = required - found_types
     assert not missing, f"Missing categories in v2: {missing}"
-    # Specific names detected
     person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
     assert any("Aarav Mehta" in t for t in person_texts), "Aarav Mehta not found"
     assert any("Neha Kapoor" in t for t in person_texts), "Neha Kapoor not found"
-    # Both credit cards detected
     card_texts = [d['text'] for d in detections if d['type'] == 'CREDIT_CARD']
     assert any("4111" in t for t in card_texts), "First card (4111) not detected"
     assert any("5555" in t for t in card_texts), "Second card (5555) not detected"
 
+
+# --- New Regression Tests for Replacement Quality & DOCX Multi-line Redaction ---
+
+def test_credit_card_replacement_not_equal_to_original():
+    """Ensure credit card fake replacement is NEVER identical to original and is valid Luhn."""
+    redactor = PIIRedactor(seed=42)
+    card1 = "4111 1111 1111 1111"
+    card2 = "5555 5555 5555 4444"
+    rep1 = redactor.get_replacement(card1, "CREDIT_CARD")
+    rep2 = redactor.get_replacement(card2, "CREDIT_CARD")
+
+    assert rep1 != card1, f"Credit card replacement was identical to original! ({rep1})"
+    assert rep2 != card2, f"Credit card replacement was identical to original! ({rep2})"
+    assert rep1 != rep2, f"Distinct cards got the same replacement! ({rep1})"
+    assert is_luhn_valid(rep1), f"Fake card 1 is not Luhn valid! ({rep1})"
+    assert is_luhn_valid(rep2), f"Fake card 2 is not Luhn valid! ({rep2})"
+
+
+def test_repeated_credit_card_and_address_consistency():
+    """Repeated occurrences of cards and addresses must receive the exact same fake replacement."""
+    redactor = PIIRedactor(seed=42)
+    card = "4111 1111 1111 1111"
+    addr = "17 Lake View Road, Sector 15,\nGurugram, Haryana 122001, India"
+
+    rep_card_1 = redactor.get_replacement(card, "CREDIT_CARD")
+    rep_card_2 = redactor.get_replacement(card, "CREDIT_CARD")
+    assert rep_card_1 == rep_card_2
+
+    rep_addr_1 = redactor.get_replacement(addr, "ADDRESS")
+    rep_addr_2 = redactor.get_replacement(addr, "ADDRESS")
+    assert rep_addr_1 == rep_addr_2
+
+
+def test_credit_card_formats_detection_and_replacement():
+    """Detect cards with spaces, hyphens, and no separators, and replace with valid Luhn cards."""
+    cards = [
+        "4111 1111 1111 1111",
+        "4111-1111-1111-1111",
+        "4111111111111111",
+        "5555 5555 5555 4444",
+        "378282246310005"
+    ]
+    redactor = PIIRedactor(seed=42)
+    for c in cards:
+        assert is_luhn_valid(c)
+        dets = detect_pii(f"My card is {c} here.")
+        assert any(d['type'] == 'CREDIT_CARD' for d in dets), f"Card not detected: {c}"
+        rep = redactor.get_replacement(c, "CREDIT_CARD")
+        assert rep != c, f"Replacement equal to original for {c}"
+        assert is_luhn_valid(rep), f"Fake replacement not Luhn valid for {c}: {rep}"
+
+
+def test_multiline_address_docx_redaction():
+    """Test that a multi-line address split across paragraphs in a DOCX is properly redacted."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_docx = os.path.join(tmpdir, "in.docx")
+        out_docx = os.path.join(tmpdir, "out.docx")
+
+        doc = docx.Document()
+        doc.add_paragraph("Customer Profile")
+        doc.add_paragraph("Address:")
+        doc.add_paragraph("17 Lake View Road, Sector 15,")
+        doc.add_paragraph("Gurugram, Haryana 122001, India")
+        doc.add_paragraph("Company: Acme Private Limited")
+        doc.save(in_docx)
+
+        # Process DOCX
+        doc = docx.Document(in_docx)
+        text_blocks = [p.text for p in doc.paragraphs if p.text.strip()]
+        full_text = "\n".join(text_blocks)
+        detections = detect_pii(full_text)
+
+        redactor = PIIRedactor(seed=42)
+        redactor.redact_document(in_docx, out_docx, detections)
+
+        # Check redacted document
+        red_doc = docx.Document(out_docx)
+        all_paras_text = "\n".join([p.text for p in red_doc.paragraphs])
+
+        assert "17 Lake View Road" not in all_paras_text, "Original address line 1 was NOT redacted!"
+        assert "Gurugram, Haryana 122001" not in all_paras_text, "Original address line 2 was NOT redacted!"
+        assert "Maharashtra, India" in all_paras_text or "411 001" in all_paras_text, "Fake address replacement missing!"
+
+
+def test_distinct_fake_generation_for_ssn_dob_ip():
+    """Different original SSNs, DOBs, and IPs receive distinct fake values."""
+    redactor = PIIRedactor(seed=42)
+    ssn1 = redactor.get_replacement("123-45-6789", "SSN")
+    ssn2 = redactor.get_replacement("987-65-4321", "SSN")
+    assert ssn1 != ssn2
+    assert ssn1 != "123-45-6789"
+
+    dob1 = redactor.get_replacement("15/08/2001", "DOB")
+    dob2 = redactor.get_replacement("01/01/1990", "DOB")
+    assert dob1 != dob2
+    assert dob1 != "15/08/2001"
+
+    ip1 = redactor.get_replacement("192.168.1.25", "IP_ADDRESS")
+    ip2 = redactor.get_replacement("10.0.0.50", "IP_ADDRESS")
+    assert ip1 != ip2
+    assert ip1 != "192.168.1.25"
