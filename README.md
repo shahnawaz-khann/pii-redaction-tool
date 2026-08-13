@@ -172,7 +172,9 @@ For detailed error analysis, refer to [evaluation/evaluation_report.md](file:///
 
 ## Streamlit Cloud Deployment
 
-A lightweight web UI is implemented in `app.py` for cloud deployment (e.g. Render / Streamlit Community Cloud):
+A lightweight web UI is implemented in `app.py` and deployed on Streamlit Cloud:
+- **Live App URL**: [https://pii-redaction-tool-1.streamlit.app/](https://pii-redaction-tool-1.streamlit.app/)
 - Allows users to upload a DOCX file.
 - Displays privacy-safe entity detection counts (without logging sensitive raw data).
 - Generates and provides a downloadable redacted DOCX file.
+
