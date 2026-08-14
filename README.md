@@ -1,43 +1,44 @@
 # PII Redaction Tool
 
-A lightweight Python document processing tool designed to detect personally identifiable information (PII) from Microsoft Word (`.docx`) documents and replace sensitive data with realistic, consistent fake alternatives.
+A Python tool that finds Personally Identifiable Information (PII) in Microsoft Word (`.docx`) files and replaces it with consistent fake data.
 
-Developed for the **Scaler AI Labs — Environment Data Intern Role** assignment, this project processes the supplied 127-page `Red Herring Prospectus.docx` and produces a fully redacted Word document (`output/redacted_prospectus.docx`) while preserving document structure and tables.
+This project was built for the **Scaler AI Labs — Environment Data Intern Role** assignment. It takes the provided 127-page `Red Herring Prospectus.docx`, detects sensitive information across paragraphs and tables, and saves a clean redacted document (`output/redacted_prospectus.docx`) while keeping the Word formatting and tables intact.
 
 ---
 
-## Technical Approach
+## How It Works
 
-The tool employs a **hybrid detection strategy** combining regular expressions, named entity recognition (NER), and contextual rules:
+The tool uses a **hybrid approach** to detect different types of PII:
 
-1. **Regular Expressions (Structured PII)**
-   - **Emails**: Regex-based detection for common email address formats such as `first.last@domain.com`.
-   - **Phone Numbers**: Indian phone number patterns (`+91 9876543210`, `020 4505 3237`, `022-68052182`). Filters avoid matching financial figures, page numbers, CINs, and DINs.
-   - **SSNs**: Standard US Social Security Number patterns (`123-45-6789`).
-   - **Credit Cards**: 13–19 digit credit card patterns validated using the **Luhn algorithm** to eliminate false positives.
-   - **IP Addresses**: Validated IPv4 addresses (`192.168.1.10`) with octet boundary checks (`0–255`).
+1. **Regular Expressions (Structured Data)**
+   - **Emails**: Detects standard email patterns (`username@domain.com`).
+   - **Phone Numbers**: Matches Indian landlines and mobile numbers (`+91 9876543210`, `020 4505 3237`, `022-68052182`). Filters ignore corporate identification numbers (CIN/DIN) and currency values.
+   - **SSNs**: Matches US Social Security Number patterns (`123-45-6789`).
+   - **Credit Cards**: Matches 13–19 digit card numbers (with spaces, hyphens, or no separators) and validates them using the **Luhn algorithm** to prevent random number strings from being flagged.
+   - **IP Addresses**: Matches IPv4 addresses (`192.168.1.10`) with valid octets (0–255).
 
-2. **spaCy NER, Domain Rules & Filtering (Unstructured PII)**
-   - **Person Names (`PERSON`)**: spaCy NER candidate extraction supplemented by domain entity lists and filtered against financial/prospectus terminology (`Cap Price`, `Floor Price`, `UPI Bidders`, `Equity Shares`, `Mutual Funds`).
-   - **Company Names (`ORGANIZATION`)**: spaCy NER combined with corporate suffixes (`Limited`, `Ltd`, `LLP`, `Private Limited`, `Bank`, `Trust`) and filtered against legal document headers (`EQUITY`, `Bids`, `Anchor Investors`, `Board`, `Maharashtra`).
-   - **Physical Addresses (`ADDRESS`)**: Verified full office address patterns and multi-line Indian office structures with PIN codes.
-   - **Dates of Birth (`DOB`)**: Date regex triggered **only** when preceded by explicit birth context keywords (`Date of Birth`, `DOB`, `born on`). Ordinary financial or filing dates are left untouched.
+2. **Context Rules & spaCy NER (Unstructured Data)**
+   - **Names (`PERSON`)**: Uses labeled patterns (like `Full Name:` or `Name:`) and spaCy NER, backed by known promoter/director names from the document. Capitalized legal headings and financial terms (`Cap Price`, `Floor Price`, `Equity Shares`) are filtered out.
+   - **Companies (`ORGANIZATION`)**: Detects company names ending in `Limited`, `Private Limited`, `LLP`, `Bank`, `Trust`, etc., combined with a filter list to skip general prospectus headings (`EQUITY`, `Bids`, `Board`).
+   - **Addresses (`ADDRESS`)**: Detects known office addresses and multi-line address blocks following an `Address:` label containing a 6-digit Indian PIN code.
+   - **Dates of Birth (`DOB`)**: Matches dates only when preceded by birth-related keywords (`Date of Birth`, `DOB`, `born on`). Regular financial or filing dates are left untouched.
 
-3. **Deterministic Replacement Mapping**
-   - Uses `Faker` with a fixed seed (`42`) to generate consistent fake alternatives.
-   - Normalized keys (lowercase/strip) ensure that capitalization variants of the same entity receive the same fake identity (e.g. `KUSHAL SUBBAYYA HEGDE` and `Kushal Subbayya Hegde` → `Aryan Maharaj`).
-   - Distinct phone replacements per unique original phone number.
-   - Preserves name-email mapping consistency where applicable (`sarthak.malvadkar@...` → `daniel.mehta@example.com`).
+3. **Consistent Fake Replacements**
+   - Uses `Faker` with a fixed seed (`42`) so replacements are deterministic and reproducible.
+   - Normalizes text keys (lowercase and stripped) so different casings of the same name (e.g. `KUSHAL SUBBAYYA HEGDE` vs `Kushal Subbayya Hegde`) get the same fake name.
+   - Different phone numbers, credit cards, SSNs, and emails get distinct fake values.
+   - Fake credit cards are generated with valid Luhn checksums and are guaranteed not to equal the original number.
 
-4. **DOCX Document Processing**
-   - Built on `python-docx`. Iterates across paragraphs, table cells, headers, and footers.
-   - When an entity spans multiple XML runs in a cell or paragraph, text is consolidated into the first run to maintain structure, with a documented tradeoff on intra-entity run styling.
+4. **DOCX Structure Preservation**
+   - Uses `python-docx` to iterate through paragraphs, tables, headers, and footers.
+   - When an entity spans multiple XML formatting runs, text is consolidated into the first run to keep the layout intact.
+   - Multi-line addresses that span across consecutive paragraphs are detected and replaced cleanly across those paragraphs.
 
 ---
 
 ## Supported PII Categories
 
-The system detects and redacts 9 PII categories:
+The tool supports 9 categories:
 1. `PERSON` (Full names)
 2. `EMAIL` (Email addresses)
 3. `PHONE` (Phone numbers)
@@ -56,89 +57,91 @@ The system detects and redacts 9 PII categories:
 pii-redaction-tool/
 ├── evaluation/
 │   ├── evaluation_report.md             # Token-level evaluation report
-│   └── ground_truth.json                # Verified ground truth JSON dataset
+│   └── ground_truth.json                # Ground truth annotations
 ├── input/
-│   └── .gitkeep                         # Placeholder (prospectus kept locally)
+│   └── .gitkeep                         # Input directory (place document here)
 ├── output/
-│   └── .gitkeep                         # Placeholder (redacted docx kept locally)
+│   └── .gitkeep                         # Output directory for redacted documents
 ├── src/
-│   ├── detectors.py                     # Hybrid PII detection engine
-│   ├── redactor.py                      # Faker replacement & DOCX redactor
-│   ├── main.py                          # Core end-to-end pipeline runner
-│   └── evaluator.py                     # Token-level evaluation & report generator
+│   ├── detectors.py                     # Detection logic (regex + context + spaCy)
+│   ├── evaluator.py                     # Token-level evaluation against ground truth
+│   ├── main.py                          # Pipeline runner
+│   └── redactor.py                      # Faker replacement & DOCX redactor
 ├── tests/
-│   └── test_detectors.py                # Automated Pytest suite (31 unit tests)
+│   └── test_detectors.py                # Pytest unit test suite (31 tests)
 ├── .gitignore                           # Git ignore rules
 ├── README.md                            # Project documentation
-├── app.py                               # Lightweight Streamlit demo interface
-├── requirements.txt                     # Project dependencies
+├── requirements.txt                     # Python dependencies
+├── app.py                               # Streamlit web demo
 └── run.py                               # Pipeline entry point
 ```
 
 ---
 
-## Installation & Setup
+## Setup & Installation
 
 ### Prerequisites
 - Python 3.9+
 
-### Setup Virtual Environment & Dependencies
+### Installation Steps
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/shahnawaz-khann/pii-redaction-tool.git
 cd pii-redaction-tool
 
-# Create and activate virtual environment
+# 2. Create and activate a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install required packages
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# Download spaCy English model
+# 4. Download the spaCy English model
 python3 -m spacy download en_core_web_sm
 ```
 
 ---
 
-## Usage
+## How to Run
 
-### 1. Run the Main Redaction & Evaluation Pipeline
+### 1. Run the Redaction & Evaluation Pipeline
 
-Place `Red Herring Prospectus.docx` inside the `input/` directory and execute:
+Place `Red Herring Prospectus.docx` inside the `input/` folder and run:
 
 ```bash
 python run.py
 ```
 
 This runs the complete workflow:
-1. Loads `input/Red Herring Prospectus.docx`.
-2. Runs hybrid detectors across all paragraphs, tables, headers, and footers.
-3. Generates consistent fake replacements using `Faker`.
-4. Saves the redacted file to `output/redacted_prospectus.docx`.
-5. Validates output DOCX integrity (paragraphs and table counts match).
-6. Evaluates predictions against `evaluation/ground_truth.json` at the token level and generates `evaluation/evaluation_report.md`.
+- Reads `input/Red Herring Prospectus.docx`
+- Runs PII detection across text, tables, headers, and footers
+- Generates fake replacements and saves `output/redacted_prospectus.docx`
+- Checks output document integrity (paragraph and table counts match)
+- Evaluates predictions against `evaluation/ground_truth.json` at the token level
+- Generates `evaluation/evaluation_report.md`
 
-### 2. Run Automated Unit Tests
+### 2. Run the Unit Tests
 
 ```bash
-pytest tests/test_detectors.py
+pytest tests/test_detectors.py -v
 ```
 
-### 3. Run Streamlit Cloud / Web Demo Interface
+### 3. Run the Streamlit Web Interface
 
 ```bash
 streamlit run app.py
 ```
 
+A live demo is also deployed at: [https://pii-redaction-tool-1.streamlit.app/](https://pii-redaction-tool-1.streamlit.app/)
+
 ---
 
-## Evaluation & Benchmark Results
+## Evaluation & Results
 
-The evaluation is calculated via **token-level classification** across all **69,746 whitespace-separated word tokens** in `Red Herring Prospectus.docx` compared against verified ground truth ([evaluation/ground_truth.json](evaluation/ground_truth.json)).
+The evaluation is measured at the **token level** across all **69,746 whitespace-separated word tokens** in `Red Herring Prospectus.docx`, comparing predictions directly against `evaluation/ground_truth.json`.
 
-### Overall Performance Metrics
+### Overall Performance
 
 - **Total Document Tokens (N)**: `69,746`
 - **True Positives (TP)**: `1,434` tokens
@@ -150,39 +153,29 @@ The evaluation is calculated via **token-level classification** across all **69,
 - **Overall Recall**: `0.9735` (97.35%)
 - **Overall F1 Score**: `0.8435` (84.35%)
 
-### Per-Category Token Summary
+### Category Breakdown
 
 | PII Category | Actual (Tokens) | Predicted (Tokens) | TP | FP | FN | TN | Precision | Recall | F1 | Accuracy |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **EMAIL** | 58 | 57 | 57 | 0 | 1 | 69,688 | **1.0000** | 0.9828 | 0.9913 | 1.0000 |
-| **PHONE** | 36 | 36 | 36 | 0 | 0 | 69,710 | **1.0000** | **1.0000** | **1.0000** | 1.0000 |
-| **PERSON** | 591 | 736 | 591 | 145 | 0 | 69,010 | 0.8030 | **1.0000** | 0.8907 | 0.9979 |
+| **EMAIL** | 58 | 57 | 57 | 0 | 1 | 69,688 | 1.0000 | 0.9828 | 0.9913 | 1.0000 |
+| **PHONE** | 36 | 36 | 36 | 0 | 0 | 69,710 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| **PERSON** | 591 | 736 | 591 | 145 | 0 | 69,010 | 0.8030 | 1.0000 | 0.8907 | 0.9979 |
 | **ORGANIZATION** | 592 | 902 | 554 | 348 | 38 | 68,806 | 0.6142 | 0.9358 | 0.7416 | 0.9945 |
-| **ADDRESS** | 196 | 196 | 196 | 0 | 0 | 69,550 | **1.0000** | **1.0000** | **1.0000** | 1.0000 |
+| **ADDRESS** | 196 | 196 | 196 | 0 | 0 | 69,550 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
 | **SSN** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **CREDIT_CARD** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **DOB** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **IP_ADDRESS** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **Total** | **1,473** | **1,927** | **1,434** | **493** | **39** | **67,780** | **0.7442** | **0.9735** | **0.8435** | **0.9924** |
 
-> **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` contain 0 actual instances in the prospectus document text. Document-level recall, precision, and F1 are marked `N/A`. The underlying detection logic for these categories is validated via synthetic unit tests in `tests/test_detectors.py`.
+> **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` do not appear in the actual prospectus text. Their document-level metrics are marked `N/A`. Their detection logic is tested and validated using synthetic test cases in `tests/test_detectors.py`.
 
-For detailed error analysis and formulas, refer to [evaluation/evaluation_report.md](evaluation/evaluation_report.md).
-
----
-
-## Practical Engineering Tradeoffs & Limitations
-
-1. **Regex vs. spaCy NER**: In the evaluated prospectus, the structured PII detectors achieved 100% precision for the detected EMAIL, PHONE, and ADDRESS categories. Additional synthetic unit tests validate the remaining structured detectors. spaCy NER identifies broader entities like names and organizations, but incurs false positives from uppercase legal headings (`THE OFFER SHALL CONSTITUTE`, `SYNDICATE MEMBERS`).
-2. **DOCX XML Run Splitting**: In Microsoft Word documents, text inside table cells can be fragmented into multiple XML run objects. When an entity crosses run boundaries, text is merged into the first run to maintain document layout, which may trade off subtle intra-word styling differences.
-3. **Local Privacy**: Document processing is performed entirely locally without external LLM or cloud API dependencies, ensuring sensitive data never leaves the runtime environment.
+See [evaluation/evaluation_report.md](evaluation/evaluation_report.md) for full error analysis and evaluation details.
 
 ---
 
-## Streamlit Cloud Deployment
+## Limitations & Engineering Tradeoffs
 
-A lightweight web UI is implemented in `app.py` and deployed on Streamlit Cloud:
-- **Live App URL**: [https://pii-redaction-tool-1.streamlit.app/](https://pii-redaction-tool-1.streamlit.app/)
-- Allows users to upload a DOCX file.
-- Displays privacy-safe entity detection counts (without logging sensitive raw data).
-- Generates and provides a downloadable redacted DOCX file.
+1. **spaCy NER False Positives**: While regex detectors for structured fields (emails, phones, addresses) achieved 100% precision on the prospectus, spaCy NER occasionally flags uppercase legal headings (like `THE OFFER SHALL CONSTITUTE` or `SYNDICATE MEMBERS`) as organizations. A keyword ignore list reduces these, but some uppercase terms still get flagged.
+2. **Word Run Fragmentation**: In Word tables, text is often broken into separate XML run elements. When an entity crosses runs, the tool places the replacement in the first run and clears subsequent runs. This keeps the paragraph structure intact, though any character-level styling inside the entity text is consolidated.
+3. **Local & Private**: All detection, redaction, and evaluation run locally on your machine without external API calls or LLM requests, keeping document content private.
