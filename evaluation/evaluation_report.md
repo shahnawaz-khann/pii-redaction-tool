@@ -1,22 +1,22 @@
 # PII Redaction Tool — Evaluation Report
 
-## 1. Evaluation Methodology & Unit of Measurement
-To establish a rigorous, defensible definition of True Negatives (TN) and Accuracy, this evaluation operates on **token-level classification** across all **69,746 whitespace-separated word tokens** in the 127-page `Red Herring Prospectus.docx`.
+## 1. Evaluation Methodology
+The evaluation is done at the **token level** over all **69,746 word tokens** in the `Red Herring Prospectus.docx` document.
 
-### Evaluation Definitions & Formulas
+### Definitions & Formulas
 - **Total Tokens (N)**: Total word tokens in the document text (`69,746`).
-- **True Positive (TP)**: Tokens that are part of ground-truth PII and correctly identified by the detector ($TP = \sum TP_{category}$).
-- **False Positive (FP)**: Non-PII tokens incorrectly classified as PII ($FP = \sum FP_{category}$).
-- **False Negative (FN)**: Ground-truth PII tokens missed by the detector ($FN = \sum FN_{category}$).
+- **True Positive (TP)**: Ground truth PII tokens correctly identified by the detector.
+- **False Positive (FP)**: Non-PII tokens incorrectly flagged as PII.
+- **False Negative (FN)**: Ground truth PII tokens that were missed.
 - **True Negative (TN)**: Non-PII tokens correctly left unredacted ($TN = N - TP - FP - FN$).
-- **Accuracy**: $\text{Accuracy} = \frac{TP + TN}{N}$
-- **Precision**: $\text{Precision} = \frac{TP}{TP + FP}$
-- **Recall**: $\text{Recall} = \frac{TP}{TP + FN}$
-- **F1 Score**: $\text{F1} = \frac{2 \times \text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$
+- **Accuracy**: $\frac{TP + TN}{N}$
+- **Precision**: $\frac{TP}{TP + FP}$
+- **Recall**: $\frac{TP}{TP + FN}$
+- **F1 Score**: $\frac{2 \times \text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$
 
-## 2. Overall Performance Metrics
+## 2. Overall Results
 
-- **Total Document Tokens (N)**: `69,746`
+- **Total Document Tokens**: `69,746`
 - **True Positives (TP)**: `1,436` tokens
 - **False Positives (FP)**: `493` tokens
 - **False Negatives (FN)**: `37` tokens
@@ -26,7 +26,7 @@ To establish a rigorous, defensible definition of True Negatives (TN) and Accura
 - **Overall Recall**: `0.9749` (97.49%)
 - **Overall F1 Score**: `0.8442` (84.42%)
 
-## 3. Per-Category Performance Summary
+## 3. Results by Category
 
 | PII Category | Actual (Tokens) | Predicted (Tokens) | TP | FP | FN | TN | Precision | Recall | F1 | Accuracy |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -41,15 +41,15 @@ To establish a rigorous, defensible definition of True Negatives (TN) and Accura
 | **IP_ADDRESS** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **Total** | **1,473** | **1,929** | **1,436** | **493** | **37** | **67,780** | **0.7444** | **0.9749** | **0.8442** | **0.9924** |
 
-> **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` contain zero actual instances in the provided prospectus text. Document-level recall, precision, and F1 are honestly marked `N/A`. The underlying detection logic for these categories is validated via synthetic test cases in `tests/test_detectors.py`.
+> **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` do not have instances in this specific prospectus document. Their precision, recall, and F1 are marked `N/A`. Their detector logic is tested using unit tests in `tests/test_detectors.py`.
 
-## 4. Error Analysis & Limitations
-### False Positives (FP)
-- **Uppercase Section Titles**: Certain capitalized headings (e.g., `THE OFFER SHALL CONSTITUTE`, `SYNDICATE MEMBERS`) matched general spaCy ORG tags.
-- **Registration/Numeric Codes**: A few multi-digit codes in table headers matched loose phone number patterns.
+## 4. Error Analysis & Notes
+### False Positives
+- **Uppercase Section Headings**: Some capitalized headings (e.g. `THE OFFER SHALL CONSTITUTE`, `SYNDICATE MEMBERS`) matched general spaCy ORG tags.
+- **Registration Codes**: A few multi-digit numbers in table headers were picked up by the phone number pattern.
 
-### False Negatives (FN)
-- **Isolated Surnames in Dense Financial Tables**: Occurrences where names were abbreviated or listed without title context.
+### False Negatives
+- **Abbreviated Names in Tables**: A few isolated surnames in financial tables without title prefixes were missed.
 
-### DOCX Run Fragmentation Tradeoffs
-- In Microsoft Word documents, text inside table cells can be fragmented into multiple XML run objects. When an entity crosses run boundaries, text is consolidated into the first run to maintain structure, with a documented tradeoff on subtle intra-word styling differences.
+### Word Run Formatting Note
+- In Word documents, text can be split across multiple XML run objects. When replacing text across runs, the replacement is placed in the first run to keep formatting intact.

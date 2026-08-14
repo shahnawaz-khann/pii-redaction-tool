@@ -1,7 +1,5 @@
 """
-redactor.py
-Redaction Engine using python-docx and Faker.
-Generates consistent fake replacements and applies them across paragraphs, tables, headers, and footers.
+Handles generating fake replacement data using Faker and replacing text inside DOCX documents.
 """
 
 import os
@@ -12,9 +10,10 @@ from typing import Dict, List, Any
 
 
 class PIIRedactor:
-    """Manages consistent fake replacement generation and DOCX document redaction."""
+    """Class to manage fake replacements and redact DOCX documents."""
 
     def __init__(self, seed: int = 42):
+        # Use Indian locale and fixed seed so replacements are deterministic
         self.fake = Faker('en_IN')
         Faker.seed(seed)
         self.replacement_map: Dict[str, str] = {}
@@ -28,17 +27,17 @@ class PIIRedactor:
         self.canonical_ip_map: Dict[str, str] = {}
 
     def _generate_fake_credit_card(self, original_text: str) -> str:
-        """Generate a deterministic, valid Luhn fake credit card that differs from original."""
+        """Generates a fake card number with a valid Luhn checksum."""
         clean_digits = re.sub(r'\D', '', original_text)
         num_digits = len(clean_digits) if 13 <= len(clean_digits) <= 19 else 16
 
-        # Deterministically generate a valid Luhn card that differs from original
+        # Pick prefix and generate random digits for the body
         prefix = "5424" if clean_digits.startswith("4") else "4532"
         middle = self.fake.numerify(text="########")
         partial = prefix + middle
         sub = (partial + self.fake.numerify(text="###"))[:num_digits - 1]
 
-        # Calculate Luhn check digit
+        # Calculate Luhn check digit for the last digit
         digits = [int(c) for c in sub]
         checksum = 0
         reverse_digits = digits[::-1]
@@ -51,7 +50,7 @@ class PIIRedactor:
         check_digit = (10 - (checksum % 10)) % 10
         fake_raw = sub + str(check_digit)
 
-        # Preserve original spacing / hyphenation style
+        # Match original formatting (spaces or hyphens)
         if " " in original_text:
             chunks = [fake_raw[i:i+4] for i in range(0, len(fake_raw), 4)]
             return " ".join(chunks)
@@ -62,11 +61,7 @@ class PIIRedactor:
             return fake_raw
 
     def get_replacement(self, original_text: str, entity_type: str) -> str:
-        """
-        Get or create consistent fake replacement for an entity.
-        Normalizes keys by lowercase/strip so casing variations share the same identity.
-        Ensures replacement is never identical to the original sensitive value.
-        """
+        """Returns a consistent fake replacement for a detected entity."""
         if original_text in self.replacement_map:
             return self.replacement_map[original_text]
 
@@ -80,6 +75,7 @@ class PIIRedactor:
                     fake_name = "Aryan Maharaj"
                 self.canonical_person_map[norm_key] = fake_name
             fake_base = self.canonical_person_map[norm_key]
+            # Match original uppercase styling if applicable
             replacement = fake_base.upper() if original_text.isupper() else fake_base
 
         elif entity_type == "EMAIL":
@@ -87,6 +83,7 @@ class PIIRedactor:
             username = parts[0]
             matched_fake_username = None
 
+            # If email contains a person's first name, try to align the fake email with that fake name
             for person_norm_key, fake_name in self.canonical_person_map.items():
                 first_name = person_norm_key.split()[0]
                 if first_name and first_name in username.lower():
@@ -171,24 +168,21 @@ class PIIRedactor:
         return replacement
 
     def build_replacement_map(self, detections: List[Dict[str, Any]]) -> Dict[str, str]:
-        """Build replacement map for all detected entities."""
+        """Creates fake mappings for all detected entities, longest strings first."""
         sorted_dets = sorted(detections, key=lambda d: len(d['text']), reverse=True)
         for det in sorted_dets:
             self.get_replacement(det['text'], det['type'])
         return self.replacement_map
 
     def replace_text_in_paragraph(self, paragraph: Any) -> int:
-        """
-        Replace mapped PII in a paragraph while preserving DOCX formatting runs.
-        Handles intra-run, cross-run, and multiple-entity paragraph occurrences.
-        """
+        """Replaces matched entities in a single paragraph while keeping run formatting."""
         if not paragraph.text or not self.replacement_map:
             return 0
 
         replacements_made = 0
         full_text = paragraph.text
 
-        # Find which mapped items exist in full paragraph text
+        # Find items present in this paragraph
         present_items = []
         for orig, fake_val in sorted(self.replacement_map.items(), key=lambda item: len(item[0]), reverse=True):
             if orig in full_text:
@@ -197,7 +191,7 @@ class PIIRedactor:
         if not present_items:
             return 0
 
-        # Replace all present items sequentially
+        # Replace text sequentially
         updated_text = paragraph.text
         for orig, fake_val in present_items:
             if orig in updated_text:
@@ -215,16 +209,13 @@ class PIIRedactor:
         return replacements_made
 
     def redact_paragraph_list(self, paragraphs: List[Any]) -> int:
-        """
-        Redacts a sequence of paragraphs, handling both single-paragraph
-        and multi-paragraph entities (such as multi-line addresses).
-        """
+        """Redacts paragraphs, handling single paragraphs and multi-line addresses."""
         if not paragraphs or not self.replacement_map:
             return 0
 
         replacements_made = 0
 
-        # Step 1: Check for multi-line entities that span across consecutive paragraphs
+        # Check multi-line addresses spanning across paragraphs
         for orig, fake_val in sorted(self.replacement_map.items(), key=lambda item: len(item[0]), reverse=True):
             if "\n" not in orig:
                 continue
@@ -235,7 +226,6 @@ class PIIRedactor:
             k = len(orig_lines)
             i = 0
             while i <= len(paragraphs) - k:
-                # Check if paragraphs[i : i+k] match orig_lines
                 matched = True
                 for j in range(k):
                     if orig_lines[j] not in paragraphs[i + j].text:
@@ -243,7 +233,7 @@ class PIIRedactor:
                         break
 
                 if matched:
-                    # In paragraph i, replace orig_lines[0] with fake_val
+                    # Replace first paragraph with fake value
                     p_first = paragraphs[i]
                     if p_first.runs:
                         p_first.runs[0].text = p_first.text.replace(orig_lines[0], fake_val)
@@ -252,7 +242,7 @@ class PIIRedactor:
                     else:
                         p_first.text = p_first.text.replace(orig_lines[0], fake_val)
 
-                    # In subsequent paragraphs i+1 .. i+k-1, remove the matched line
+                    # Clear subsequent paragraphs that belonged to the address
                     for j in range(1, k):
                         p_sub = paragraphs[i + j]
                         if p_sub.runs:
@@ -267,17 +257,14 @@ class PIIRedactor:
                 else:
                     i += 1
 
-        # Step 2: Handle remaining single-paragraph replacements
+        # Handle remaining normal single-paragraph replacements
         for p in paragraphs:
             replacements_made += self.replace_text_in_paragraph(p)
 
         return replacements_made
 
     def redact_document(self, input_path: str, output_path: str, detections: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Redact input DOCX file and save to output_path.
-        Returns execution statistics.
-        """
+        """Redacts input DOCX file and saves output to output_path."""
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
@@ -287,23 +274,23 @@ class PIIRedactor:
         doc = docx.Document(input_path)
         total_replacements = 0
 
-        # 1. Process main paragraphs
+        # 1. Main body paragraphs
         total_replacements += self.redact_paragraph_list(doc.paragraphs)
 
-        # 2. Process tables
+        # 2. Tables
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
                     total_replacements += self.redact_paragraph_list(cell.paragraphs)
 
-        # 3. Process headers and footers
+        # 3. Headers and footers
         for section in doc.sections:
             if section.header:
                 total_replacements += self.redact_paragraph_list(section.header.paragraphs)
             if section.footer:
                 total_replacements += self.redact_paragraph_list(section.footer.paragraphs)
 
-        # Ensure output directory exists
+        # Ensure output folder exists and save
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         doc.save(output_path)
 

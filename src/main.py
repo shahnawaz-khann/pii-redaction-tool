@@ -1,6 +1,5 @@
 """
-main.py
-Main entry point for running the end-to-end PII detection, redaction, output validation, and evaluation pipeline.
+Main pipeline script for running PII detection, redaction, and evaluation.
 """
 
 import os
@@ -17,21 +16,18 @@ def run_pipeline(
     ground_truth_path: str = "evaluation/ground_truth.json",
     report_path: str = "evaluation/evaluation_report.md"
 ):
-    print("=" * 60)
-    print("      PII REDACTION TOOL — END-TO-END PIPELINE")
-    print("=" * 60)
+    print("Starting PII Redaction Pipeline...")
 
-    # 1. Input Check
+    # 1. Check if input document exists
     if not os.path.exists(input_path):
         print(f"Error: Input document not found at {input_path}")
         sys.exit(1)
 
-    print(f"\n[1/5] Loading document: {input_path}...")
+    print(f"\n1. Reading document: {input_path}")
     doc = docx.Document(input_path)
-    print(f"      - Paragraphs: {len(doc.paragraphs)}")
-    print(f"      - Tables: {len(doc.tables)}")
+    print(f"   Paragraphs: {len(doc.paragraphs)}, Tables: {len(doc.tables)}")
 
-    # Extract text
+    # Extract all text from paragraphs and table cells
     text_blocks = [p.text for p in doc.paragraphs if p.text.strip()]
     for table in doc.tables:
         for row in table.rows:
@@ -41,63 +37,58 @@ def run_pipeline(
                         text_blocks.append(p.text.strip())
 
     full_text = "\n".join(text_blocks)
-    print(f"      - Total Characters: {len(full_text)}")
+    print(f"   Total characters extracted: {len(full_text)}")
 
-    # 2. Detect PII
-    print("\n[2/5] Running hybrid PII detection (Regex + spaCy + Context Rules)...")
+    # 2. Run PII detection
+    print("\n2. Detecting PII entities...")
     detections = detect_pii(full_text)
-    print(f"      - Total PII candidates detected: {len(detections)}")
+    print(f"   Found {len(detections)} potential PII entities")
 
-    # Category breakdown (privacy safe, no raw text logged)
+    # Count detections by category
     cat_counts = {}
     for d in detections:
         cat_counts[d['type']] = cat_counts.get(d['type'], 0) + 1
     for cat, cnt in sorted(cat_counts.items()):
-        print(f"        * {cat}: {cnt}")
+        print(f"   - {cat}: {cnt}")
 
-    # 3. Redact & Save DOCX
-    print("\n[3/5] Generating consistent replacements & redacting document...")
+    # 3. Generate replacements and redact document
+    print("\n3. Generating fake replacements and creating redacted DOCX...")
     redactor = PIIRedactor(seed=42)
     stats = redactor.redact_document(input_path, output_path, detections)
-    print(f"      - Mapped unique entities: {stats['unique_entities_mapped']}")
-    print(f"      - Total text replacements applied: {stats['total_replacements_applied']}")
-    print(f"      - Redacted DOCX saved to: {output_path}")
+    print(f"   Mapped {stats['unique_entities_mapped']} unique entities")
+    print(f"   Applied {stats['total_replacements_applied']} replacements in document")
+    print(f"   Saved to: {output_path}")
 
-    # 4. Output Validation
-    print("\n[4/5] Validating redacted output DOCX...")
+    # 4. Verify output document
+    print("\n4. Checking redacted document integrity...")
     if not os.path.exists(output_path):
-        print(f"      Error: Output file does not exist at {output_path}")
+        print(f"   Error: Output file not created at {output_path}")
         sys.exit(1)
 
     try:
         redacted_doc = docx.Document(output_path)
-        print(f"      - Validated output document opens successfully.")
-        print(f"      - Paragraphs count: {len(redacted_doc.paragraphs)} (matches original)")
-        print(f"      - Tables count: {len(redacted_doc.tables)} (matches original)")
+        print("   Document opens without issues.")
+        print(f"   Paragraph count: {len(redacted_doc.paragraphs)} (matches original)")
+        print(f"   Table count: {len(redacted_doc.tables)} (matches original)")
     except Exception as e:
-        print(f"      Error: Output document validation failed: {e}")
+        print(f"   Error opening redacted document: {e}")
         sys.exit(1)
 
-    # 5. Run Token-Level Evaluation
-    print("\n[5/5] Running token-level evaluation against ground truth...")
+    # 5. Evaluate against ground truth
+    print("\n5. Running token-level evaluation...")
     if os.path.exists(ground_truth_path):
         eval_results = evaluate_redaction(input_path, ground_truth_path, report_path)
-        print(f"      - Total Tokens      : {eval_results['total_tokens']:,}")
-        print(f"      - True Positives (TP): {eval_results['tp']:,} tokens")
-        print(f"      - False Positives (FP): {eval_results['fp']:,} tokens")
-        print(f"      - False Negatives (FN): {eval_results['fn']:,} tokens")
-        print(f"      - True Negatives (TN): {eval_results['tn']:,} tokens")
-        print(f"      - Overall Accuracy  : {eval_results['overall_accuracy']:.4f} ({eval_results['overall_accuracy']*100:.2f}%)")
-        print(f"      - Overall Precision : {eval_results['overall_precision']:.4f} ({eval_results['overall_precision']*100:.2f}%)")
-        print(f"      - Overall Recall    : {eval_results['overall_recall']:.4f} ({eval_results['overall_recall']*100:.2f}%)")
-        print(f"      - Overall F1 Score  : {eval_results['overall_f1']:.4f} ({eval_results['overall_f1']*100:.2f}%)")
-        print(f"      - Evaluation report saved to: {report_path}")
+        print(f"   Total Tokens : {eval_results['total_tokens']:,}")
+        print(f"   TP: {eval_results['tp']:,} | FP: {eval_results['fp']:,} | FN: {eval_results['fn']:,} | TN: {eval_results['tn']:,}")
+        print(f"   Accuracy  : {eval_results['overall_accuracy']*100:.2f}%")
+        print(f"   Precision : {eval_results['overall_precision']*100:.2f}%")
+        print(f"   Recall    : {eval_results['overall_recall']*100:.2f}%")
+        print(f"   F1 Score  : {eval_results['overall_f1']*100:.2f}%")
+        print(f"   Report written to: {report_path}")
     else:
-        print(f"      Warning: Ground truth not found at {ground_truth_path}, skipping evaluation.")
+        print(f"   Ground truth not found at {ground_truth_path}, skipping evaluation.")
 
-    print("\n" + "=" * 60)
-    print("      PII REDACTION PIPELINE COMPLETED SUCCESSFULLY!")
-    print("=" * 60)
+    print("\nPipeline finished successfully!")
 
 
 if __name__ == "__main__":

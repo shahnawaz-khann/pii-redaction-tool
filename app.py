@@ -19,10 +19,8 @@ st.set_page_config(
 )
 
 st.title("🔒 PII Redaction Tool")
-st.markdown("""
-This application detects and redacts Personally Identifiable Information (PII) from Word documents (`.docx`).
-It replaces sensitive data (Names, Emails, Phones, Addresses, Company names, etc.) with realistic fake alternatives.
-""")
+st.markdown("""This application detects and redacts Personally Identifiable Information (PII) from Word documents (`.docx`).
+It replaces sensitive data (Names, Emails, Phones, Addresses, Company names, etc.) with realistic fake alternatives.""")
 
 uploaded_file = st.file_uploader("Upload a DOCX Document", type=["docx"])
 

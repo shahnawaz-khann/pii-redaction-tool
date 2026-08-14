@@ -1,27 +1,26 @@
 """
-detectors.py
-Hybrid PII detection engine combining Regex, spaCy NER, and Contextual Rules.
-Supports 9 PII categories: EMAIL, PHONE, SSN, CREDIT_CARD, IP_ADDRESS, PERSON, ORGANIZATION, ADDRESS, DOB.
+PII Detection module using Regex, spaCy NER, and context-based rules.
+Supports: EMAIL, PHONE, SSN, CREDIT_CARD, IP_ADDRESS, PERSON, ORGANIZATION, ADDRESS, DOB.
 """
 
 import re
 import spacy
 from typing import List, Dict, Any
 
-# Load fast spaCy model with parser & lemmatizer disabled for performance
+# Load spaCy english model; disable parser and lemmatizer to speed things up
 try:
     nlp = spacy.load("en_core_web_sm", disable=["parser", "lemmatizer"])
 except Exception:
     nlp = None
 
-# Regex Patterns
+# Regex patterns for structured fields
 EMAIL_REGEX = re.compile(r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b')
 PHONE_REGEX = re.compile(r'(?:\+91[\s\-]?)?(?:\(0?\d{2,4}\)|0\d{2,4})[\s\-]?\d{6,8}|\+91[\s\-]\d{2,5}[\s\-]\d{6,8}|\+91\s\d{10}')
 SSN_REGEX = re.compile(r'\b\d{3}[-\s]\d{2}[-\s]\d{4}\b')
 CREDIT_CARD_REGEX = re.compile(r'(?<![\d])(?:\d[ -]*){13,19}\d(?![\d])')
 IP_REGEX = re.compile(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b')
 
-# DOB Context Keywords
+# DOB triggers and date formats
 DOB_CONTEXT_KEYWORDS = ['date of birth', 'dob', 'born on', 'birth date', 'date of birth:']
 DOB_DATE_REGEX = re.compile(
     r'\b(?:\d{1,2}[/\.-]\d{1,2}[/\.-]\d{2,4}|'
@@ -29,7 +28,7 @@ DOB_DATE_REGEX = re.compile(
     re.IGNORECASE
 )
 
-# False Positive Ignore Lists for PERSON & ORG
+# Common legal/financial phrases in the prospectus that spaCy often misidentifies as names
 FALSE_PERSONS = {
     'cap price', 'floor price', 'mutual funds', 'upi bidders', 'supa facility',
     'bandra kurla complex', 'deccan gymkhana', 'appasaheb marathe marg',
@@ -44,6 +43,7 @@ FALSE_PERSONS = {
     'additional contact', 'contact information', 'profile'
 }
 
+# Common uppercase words/headings in the prospectus that shouldn't be tagged as companies
 FALSE_ORGS = {
     'equity', 'bids', 'equity shares', 'bidders', 'the offer price', 'anchor investors',
     'board', 'maharashtra', 'company', 'prospectus', 'issuer', 'offer', 'promoter group',
@@ -56,11 +56,13 @@ FALSE_ORGS = {
     'fema', 'cogs', 'scsb', 'bankers', 'the foreign exchange management (deposit', 'sebi', 'cin', 'din'
 }
 
+# Suffixes and keywords typical of organization names
 ORG_KEYWORDS = {
     'limited', 'ltd', 'llp', 'private limited', 'pvt ltd', 'bank', 'trust', 'securities',
     'management', 'inc', 'corp', 'corporation', 'trilegal'
 }
 
+# Known promoters, directors, key executives in the prospectus document
 KNOWN_PERSONS = [
     'Kushal Subbayya Hegde', 'KUSHAL SUBBAYYA HEGDE', 'Kushal Hegde',
     'Pushpa Kushal Hegde', 'PUSHPA KUSHAL HEGDE', 'Pushpa Hegde',
@@ -76,6 +78,7 @@ KNOWN_PERSONS = [
     'Ajay Menon', 'Karunakar Hegde'
 ]
 
+# Known corporate entities in the prospectus document
 KNOWN_ORGS = [
     'KSH International Limited', 'KSH INTERNATIONAL LIMITED',
     'Bhandary Metal Extrusion Private Limited', 'KSH International Private Limited',
@@ -89,6 +92,7 @@ KNOWN_ORGS = [
     'BROAD FAMILY TRUST', 'ANNAPURNA FAMILY TRUST', 'KANCHENJUNGA FAMILY TRUST'
 ]
 
+# Known addresses in the prospectus document
 KNOWN_ADDRESSES = [
     '11/3, 11/4 and 11/5, Village Birdewadi, Chakan Taluka - Khed, Pune – 410 501, Maharashtra, India',
     '11/3, 11/4 and 11/5 Village Birdewadi Chakan Taluka - Khed Pune – 410 501 Maharashtra, India',
@@ -107,7 +111,7 @@ KNOWN_ADDRESSES = [
 
 
 def is_luhn_valid(card_number_str: str) -> bool:
-    """Validate card number using the Luhn algorithm."""
+    """Helper to check if a card number passes the Luhn check algorithm."""
     digits = [int(c) for c in card_number_str if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
         return False
@@ -123,7 +127,7 @@ def is_luhn_valid(card_number_str: str) -> bool:
 
 
 def validate_ip(ip_str: str) -> bool:
-    """Validate IPv4 octet ranges (0-255)."""
+    """Checks if each part of an IPv4 address is between 0 and 255."""
     parts = ip_str.split('.')
     if len(parts) != 4:
         return False
@@ -134,7 +138,7 @@ def validate_ip(ip_str: str) -> bool:
 
 
 def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
-    """Detect structured PII using regular expressions."""
+    """Detects emails, phone numbers, SSNs, credit cards, and IPs using regex."""
     detections = []
 
     # 1. Emails
@@ -147,7 +151,7 @@ def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
             "source": "regex"
         })
 
-    # 2. Phones
+    # 2. Phone numbers (skip things like CIN/DIN numbers or decimal amounts)
     for match in PHONE_REGEX.finditer(text):
         val = match.group(0)
         if not re.search(r'U\d{5}|CIN|DIN|\.\d{2}', val):
@@ -159,7 +163,7 @@ def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
                 "source": "regex"
             })
 
-    # 3. SSNs
+    # 3. Social Security Numbers
     for match in SSN_REGEX.finditer(text):
         detections.append({
             "text": match.group(0),
@@ -169,7 +173,7 @@ def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
             "source": "regex"
         })
 
-    # 4. Credit Cards
+    # 4. Credit Cards (only keep if valid via Luhn)
     for match in CREDIT_CARD_REGEX.finditer(text):
         raw_card = match.group(0)
         if is_luhn_valid(raw_card):
@@ -196,9 +200,7 @@ def detect_regex_pii(text: str) -> List[Dict[str, Any]]:
     return detections
 
 
-# Label-based context patterns — only fire when an explicit label precedes the value.
-# NOTE: use [ \t]+ (not \s+) between name parts so the pattern cannot cross a newline
-#       into the next line's label (e.g. "Aarav Mehta\nEmail:" was being captured).
+# Context patterns for fields following specific labels
 NAME_LABEL_REGEX = re.compile(
     r'(?:Full[ \t]+Name|Name)\s*:\s*([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)',
     re.IGNORECASE
@@ -207,10 +209,6 @@ COMPANY_LABEL_REGEX = re.compile(
     r'Company\s*:\s*\n?\s*([A-Z][A-Za-z0-9&.,\s]+(?:Private\s+Limited|Limited|Ltd|LLP|Pvt\.?\s*Ltd\.?|Inc\.?|Corp\.))',
     re.IGNORECASE
 )
-# General Indian address pattern: triggered only after an "Address:" label.
-# Captures the first line plus up to 2 continuation lines.
-# Each continuation line is accepted only if it does NOT look like a new label
-# (pattern: optional spaces, then word-chars, then colon, e.g. "Credit Card:" or "Company:").
 _LABEL_LINE = re.compile(r'^\s*[\w][\w\s]*:', re.MULTILINE)
 ADDRESS_LABEL_REGEX = re.compile(
     r'Address\s*:\s*\n?\s*([^\n]+(?:\n(?![\w][\w\s]*:)[^\n]+){0,2})',
@@ -219,10 +217,10 @@ ADDRESS_LABEL_REGEX = re.compile(
 
 
 def detect_context_pii(text: str) -> List[Dict[str, Any]]:
-    """Detect contextual PII such as Date of Birth (DOB), Addresses, Names and Companies via labels."""
+    """Detects DOBs, addresses, and labeled fields (Name:, Company:, Address:)."""
     detections = []
 
-    # 1. Date of Birth (DOB) via context keyword
+    # 1. Date of Birth after keywords like "Date of Birth:" or "DOB"
     text_lower = text.lower()
     for kw in DOB_CONTEXT_KEYWORDS:
         idx = text_lower.find(kw)
@@ -241,7 +239,7 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
                 })
             idx = text_lower.find(kw, idx + len(kw))
 
-    # 2. Address Detection: Prefer verified full addresses
+    # 2. Known full addresses
     for addr in KNOWN_ADDRESSES:
         pattern = re.compile(re.escape(addr), re.IGNORECASE)
         for match in pattern.finditer(text):
@@ -253,11 +251,9 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
                 "source": "context"
             })
 
-    # 3. Label-based Address: "Address:" followed by content with a 6-digit PIN code
+    # 3. Labeled addresses with a 6-digit Indian PIN code
     for match in ADDRESS_LABEL_REGEX.finditer(text):
         addr_text = match.group(1).strip()
-        # Only accept if a 6-digit PIN code is present (Indian postal code)
-        # and not already caught by KNOWN_ADDRESSES
         if (addr_text
                 and re.search(r'\b\d{6}\b', addr_text)
                 and not any(ka.lower() in addr_text.lower() for ka in KNOWN_ADDRESSES)):
@@ -269,7 +265,7 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
                 "source": "context_label"
             })
 
-    # 4. Label-based Person: "Full Name:" or "Name:" followed by a capitalized name
+    # 4. Names following "Name:" or "Full Name:"
     for match in NAME_LABEL_REGEX.finditer(text):
         name_text = match.group(1).strip()
         if name_text and name_text.lower() not in FALSE_PERSONS:
@@ -281,7 +277,7 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
                 "source": "context_label"
             })
 
-    # 5. Label-based Organization: "Company:" followed by a company name
+    # 5. Companies following "Company:"
     for match in COMPANY_LABEL_REGEX.finditer(text):
         org_text = match.group(1).strip()
         if org_text and org_text.lower() not in FALSE_ORGS:
@@ -297,10 +293,10 @@ def detect_context_pii(text: str) -> List[Dict[str, Any]]:
 
 
 def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
-    """Detect PERSON and ORGANIZATION PII using spaCy NER with filtering & domain matching."""
+    """Detects PERSON and ORGANIZATION entities using spaCy and document lists."""
     detections = []
 
-    # 1. Known Domain Entities for high precision
+    # 1. Known persons list
     for person in KNOWN_PERSONS:
         pattern = re.compile(r'(?<!\w)' + re.escape(person) + r'(?!\w)')
         for match in pattern.finditer(text):
@@ -312,6 +308,7 @@ def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
                 "source": "domain_rules"
             })
 
+    # 2. Known organizations list
     for org in KNOWN_ORGS:
         pattern = re.compile(r'(?<!\w)' + re.escape(org) + r'(?!\w)')
         for match in pattern.finditer(text):
@@ -323,7 +320,7 @@ def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
                 "source": "domain_rules"
             })
 
-    # 2. Fast Chunked spaCy NER for general entities
+    # 3. General spaCy NER running in chunks
     if nlp and len(text) > 0:
         chunk_size = 50000
         for i in range(0, len(text), chunk_size):
@@ -367,15 +364,11 @@ def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
 
 
 def resolve_overlapping_detections(detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Resolve overlapping entity detections.
-    Sorts by start position ascending, and span length descending.
-    Keeps non-overlapping entities or higher-specificity entities.
-    """
+    """Sorts detections and filters out overlapping spans, prioritizing longer spans."""
     if not detections:
         return []
 
-    # Sort by start position, then by span length descending
+    # Sort by start position ascending, then longest span first
     sorted_dets = sorted(detections, key=lambda d: (d['start'], -(d['end'] - d['start'])))
 
     resolved = []
@@ -390,7 +383,7 @@ def resolve_overlapping_detections(detections: List[Dict[str, Any]]) -> List[Dic
 
 
 def detect_pii(text: str) -> List[Dict[str, Any]]:
-    """Main hybrid detection entry point."""
+    """Runs all detectors on the given text and returns resolved non-overlapping detections."""
     regex_dets = detect_regex_pii(text)
     context_dets = detect_context_pii(text)
     spacy_dets = detect_spacy_pii(text)

@@ -1,7 +1,5 @@
 """
-test_detectors.py
-Pytest unit tests for PII detectors, false positive suppression, replacement consistency,
-and evaluation metrics calculation.
+Unit tests for PII detectors, faker replacement consistency, and evaluation metrics.
 """
 
 import pytest
@@ -131,10 +129,8 @@ def test_distinct_phones_have_different_replacements():
     assert phone1_rep != phone2_rep
 
 
-# --- Tests for synthetic document cases ---
-
 def test_label_based_name_detection():
-    """Names after 'Full Name:' or 'Name:' labels must be detected."""
+    """Names following 'Full Name:' or 'Name:' labels should be detected."""
     text = "Full Name: Rahul Sharma\nName: Priya Mehta"
     detections = detect_pii(text)
     person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
@@ -143,7 +139,7 @@ def test_label_based_name_detection():
 
 
 def test_label_based_organization_detection():
-    """Company name after 'Company:' label must be detected."""
+    """Company names following 'Company:' label should be detected."""
     text = "Company:\nSharma Technologies Private Limited"
     detections = detect_pii(text)
     org_texts = [d['text'] for d in detections if d['type'] == 'ORGANIZATION']
@@ -151,7 +147,7 @@ def test_label_based_organization_detection():
 
 
 def test_label_based_address_detection():
-    """Address with Indian PIN code after 'Address:' label must be detected."""
+    """Addresses with a 6-digit Indian PIN code following 'Address:' should be detected."""
     text = "Address:\n42 Green Park Road, Sector 18,\nNoida, Uttar Pradesh 201301, India"
     detections = detect_pii(text)
     addr_texts = [d['text'] for d in detections if d['type'] == 'ADDRESS']
@@ -160,7 +156,7 @@ def test_label_based_address_detection():
 
 
 def test_credit_card_with_spaces():
-    """Credit card number with spaces must pass Luhn and be detected."""
+    """Credit card with spaces should pass Luhn and be detected."""
     text = "Credit Card: 4111 1111 1111 1111"
     assert is_luhn_valid("4111 1111 1111 1111")
     detections = detect_pii(text)
@@ -169,7 +165,7 @@ def test_credit_card_with_spaces():
 
 
 def test_all_9_categories_synthetic():
-    """Synthetic document must produce detections for all 9 PII categories."""
+    """Test that all 9 PII categories are caught in a synthetic test string."""
     text = (
         "Full Name: Rahul Sharma\n"
         "Email: rahul.sharma@example.com\n"
@@ -191,10 +187,8 @@ def test_all_9_categories_synthetic():
     assert not missing, f"Missing categories: {missing}"
 
 
-# --- v2 regression tests ---
-
 def test_name_label_does_not_cross_newline_into_next_label():
-    """Person name captured by 'Full Name:' label must not include the next label line."""
+    """Person name pattern should not spill over into the next line's label."""
     text = "Full Name: Aarav Mehta\nEmail: aarav.mehta@example.com"
     detections = detect_pii(text)
     person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
@@ -203,7 +197,7 @@ def test_name_label_does_not_cross_newline_into_next_label():
 
 
 def test_address_does_not_swallow_next_section_label():
-    """Address detection must stop before the next 'Label: value' line."""
+    """Address pattern should stop before the next section label."""
     text = (
         "Address:\n"
         "28 MG Road, Andheri West,\n"
@@ -217,7 +211,7 @@ def test_address_does_not_swallow_next_section_label():
 
 
 def test_second_credit_card_not_lost_due_to_address_overlap():
-    """Both credit cards must be detected independently when they follow separate address blocks."""
+    """Two credit cards separated by addresses should both be detected."""
     text = (
         "Address:\n"
         "17 Lake View Road, Sector 15,\n"
@@ -236,7 +230,7 @@ def test_second_credit_card_not_lost_due_to_address_overlap():
 
 
 def test_v2_full_synthetic_all_9_categories():
-    """Full v2 synthetic document must detect all 9 PII categories cleanly."""
+    """Test complete synthetic profile document with all 9 PII categories."""
     text = (
         "Full Name: Aarav Mehta\n"
         "Email: aarav.mehta@example.com\n"
@@ -262,7 +256,7 @@ def test_v2_full_synthetic_all_9_categories():
     found_types = {d['type'] for d in detections}
     required = {"PERSON", "EMAIL", "PHONE", "DOB", "ADDRESS", "ORGANIZATION", "SSN", "CREDIT_CARD", "IP_ADDRESS"}
     missing = required - found_types
-    assert not missing, f"Missing categories in v2: {missing}"
+    assert not missing, f"Missing categories: {missing}"
     person_texts = [d['text'] for d in detections if d['type'] == 'PERSON']
     assert any("Aarav Mehta" in t for t in person_texts), "Aarav Mehta not found"
     assert any("Neha Kapoor" in t for t in person_texts), "Neha Kapoor not found"
@@ -271,25 +265,23 @@ def test_v2_full_synthetic_all_9_categories():
     assert any("5555" in t for t in card_texts), "Second card (5555) not detected"
 
 
-# --- Regression Tests for Replacement Quality & DOCX Multi-line Redaction ---
-
 def test_credit_card_replacement_not_equal_to_original():
-    """Ensure credit card fake replacement is NEVER identical to original and is valid Luhn."""
+    """Ensure fake credit card replacement is different from original and passes Luhn check."""
     redactor = PIIRedactor(seed=42)
     card1 = "4111 1111 1111 1111"
     card2 = "5555 5555 5555 4444"
     rep1 = redactor.get_replacement(card1, "CREDIT_CARD")
     rep2 = redactor.get_replacement(card2, "CREDIT_CARD")
 
-    assert rep1 != card1, f"Credit card replacement was identical to original! ({rep1})"
-    assert rep2 != card2, f"Credit card replacement was identical to original! ({rep2})"
-    assert rep1 != rep2, f"Distinct cards got the same replacement! ({rep1})"
-    assert is_luhn_valid(rep1), f"Fake card 1 is not Luhn valid! ({rep1})"
-    assert is_luhn_valid(rep2), f"Fake card 2 is not Luhn valid! ({rep2})"
+    assert rep1 != card1, f"Replacement was identical to original: {rep1}"
+    assert rep2 != card2, f"Replacement was identical to original: {rep2}"
+    assert rep1 != rep2, f"Different cards received same replacement: {rep1}"
+    assert is_luhn_valid(rep1), f"Fake card 1 is not Luhn valid: {rep1}"
+    assert is_luhn_valid(rep2), f"Fake card 2 is not Luhn valid: {rep2}"
 
 
 def test_repeated_credit_card_and_address_consistency():
-    """Repeated occurrences of cards and addresses must receive the exact same fake replacement."""
+    """Check that same card and address get identical replacements when repeated."""
     redactor = PIIRedactor(seed=42)
     card = "4111 1111 1111 1111"
     addr = "17 Lake View Road, Sector 15,\nGurugram, Haryana 122001, India"
@@ -304,7 +296,7 @@ def test_repeated_credit_card_and_address_consistency():
 
 
 def test_credit_card_formats_detection_and_replacement():
-    """Detect cards with spaces, hyphens, and no separators, and replace with valid Luhn cards."""
+    """Test cards with spaces, dashes, or no separators."""
     cards = [
         "4111 1111 1111 1111",
         "4111-1111-1111-1111",
@@ -323,7 +315,7 @@ def test_credit_card_formats_detection_and_replacement():
 
 
 def test_multiline_address_docx_redaction():
-    """Test that a multi-line address split across paragraphs in a DOCX is properly redacted."""
+    """Test redaction of an address spanning multiple paragraphs in a DOCX."""
     with tempfile.TemporaryDirectory() as tmpdir:
         in_docx = os.path.join(tmpdir, "in.docx")
         out_docx = os.path.join(tmpdir, "out.docx")
@@ -336,7 +328,6 @@ def test_multiline_address_docx_redaction():
         doc.add_paragraph("Company: Acme Private Limited")
         doc.save(in_docx)
 
-        # Process DOCX
         doc = docx.Document(in_docx)
         text_blocks = [p.text for p in doc.paragraphs if p.text.strip()]
         full_text = "\n".join(text_blocks)
@@ -345,17 +336,16 @@ def test_multiline_address_docx_redaction():
         redactor = PIIRedactor(seed=42)
         redactor.redact_document(in_docx, out_docx, detections)
 
-        # Check redacted document
         red_doc = docx.Document(out_docx)
         all_paras_text = "\n".join([p.text for p in red_doc.paragraphs])
 
-        assert "17 Lake View Road" not in all_paras_text, "Original address line 1 was NOT redacted!"
-        assert "Gurugram, Haryana 122001" not in all_paras_text, "Original address line 2 was NOT redacted!"
-        assert "Maharashtra, India" in all_paras_text or "411 001" in all_paras_text, "Fake address replacement missing!"
+        assert "17 Lake View Road" not in all_paras_text, "Address line 1 was not redacted"
+        assert "Gurugram, Haryana 122001" not in all_paras_text, "Address line 2 was not redacted"
+        assert "Maharashtra, India" in all_paras_text or "411 001" in all_paras_text, "Fake address missing"
 
 
 def test_distinct_fake_generation_for_ssn_dob_ip():
-    """Different original SSNs, DOBs, and IPs receive distinct fake values."""
+    """Ensure different SSNs, DOBs, and IPs get distinct replacements."""
     redactor = PIIRedactor(seed=42)
     ssn1 = redactor.get_replacement("123-45-6789", "SSN")
     ssn2 = redactor.get_replacement("987-65-4321", "SSN")
@@ -373,22 +363,18 @@ def test_distinct_fake_generation_for_ssn_dob_ip():
     assert ip1 != "192.168.1.25"
 
 
-# --- Tests for Evaluation Metrics Consistency & Formulas ---
-
 def test_evaluator_metric_formulas_and_aggregation_consistency():
-    """Verify evaluator calculates overall metrics directly from category totals with mathematical consistency."""
+    """Verify evaluator formulas and metric aggregation across categories."""
     with tempfile.TemporaryDirectory() as tmpdir:
         doc_path = os.path.join(tmpdir, "test_doc.docx")
         gt_path = os.path.join(tmpdir, "gt.json")
         report_path = os.path.join(tmpdir, "report.md")
 
-        # Create a document
         doc = docx.Document()
         doc.add_paragraph("The Managing Director is Rashi Patil at Example Technologies Private Limited.")
         doc.add_paragraph("Contact: rashi.patil@example.com, Phone: +91 9876543210.")
         doc.save(doc_path)
 
-        # Create corresponding ground truth
         gt_data = {
             "entities": [
                 {"type": "PERSON", "text": "Rashi Patil"},
@@ -402,20 +388,18 @@ def test_evaluator_metric_formulas_and_aggregation_consistency():
 
         res = evaluate_redaction(doc_path, gt_path, report_path)
 
-        # Check that overall TP/FP/FN match the exact sum of category TP/FP/FN
+        # Check that overall sums match category sums
         sum_tp = sum(m["tp"] for m in res["metrics_by_cat"].values())
         sum_fp = sum(m["fp"] for m in res["metrics_by_cat"].values())
         sum_fn = sum(m["fn"] for m in res["metrics_by_cat"].values())
 
-        assert res["tp"] == sum_tp, f"Overall TP ({res['tp']}) != sum of category TP ({sum_tp})"
-        assert res["fp"] == sum_fp, f"Overall FP ({res['fp']}) != sum of category FP ({sum_fp})"
-        assert res["fn"] == sum_fn, f"Overall FN ({res['fn']}) != sum of category FN ({sum_fn})"
+        assert res["tp"] == sum_tp
+        assert res["fp"] == sum_fp
+        assert res["fn"] == sum_fn
 
-        # Check TN formula: TN = N - TP - FP - FN
         expected_tn = res["total_tokens"] - res["tp"] - res["fp"] - res["fn"]
-        assert res["tn"] == expected_tn, f"Overall TN ({res['tn']}) != expected TN ({expected_tn})"
+        assert res["tn"] == expected_tn
 
-        # Check Precision, Recall, F1, Accuracy formulas
         if res["tp"] + res["fp"] > 0:
             expected_prec = res["tp"] / (res["tp"] + res["fp"])
             assert abs(res["overall_precision"] - expected_prec) < 1e-6
@@ -427,7 +411,7 @@ def test_evaluator_metric_formulas_and_aggregation_consistency():
 
 
 def test_evaluator_zero_instance_categories_handling():
-    """Verify zero-instance categories are safely marked N/A without causing zero-division errors."""
+    """Verify zero-instance categories are marked N/A without causing divide-by-zero errors."""
     with tempfile.TemporaryDirectory() as tmpdir:
         doc_path = os.path.join(tmpdir, "test_doc.docx")
         gt_path = os.path.join(tmpdir, "gt.json")
