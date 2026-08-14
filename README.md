@@ -11,7 +11,7 @@ Developed for the **Scaler AI Labs — Environment Data Intern Role** assignment
 The tool employs a **hybrid detection strategy** combining regular expressions, named entity recognition (NER), and contextual rules:
 
 1. **Regular Expressions (Structured PII)**
-   - **Emails**: Standard RFC-compliant regex for emails (`first.last@domain.com`).
+   - **Emails**: Regex-based detection for common email address formats such as `first.last@domain.com`.
    - **Phone Numbers**: Indian phone number patterns (`+91 9876543210`, `020 4505 3237`, `022-68052182`). Filters avoid matching financial figures, page numbers, CINs, and DINs.
    - **SSNs**: Standard US Social Security Number patterns (`123-45-6789`).
    - **Credit Cards**: 13–19 digit credit card patterns validated using the **Luhn algorithm** to eliminate false positives.
@@ -67,7 +67,7 @@ pii-redaction-tool/
 │   ├── main.py                          # Core end-to-end pipeline runner
 │   └── evaluator.py                     # Token-level evaluation & report generator
 ├── tests/
-│   └── test_detectors.py                # Automated Pytest suite (29 unit tests)
+│   └── test_detectors.py                # Automated Pytest suite (31 unit tests)
 ├── .gitignore                           # Git ignore rules
 ├── README.md                            # Project documentation
 ├── app.py                               # Lightweight Streamlit demo interface
@@ -141,28 +141,29 @@ The evaluation is calculated via **token-level classification** across all **69,
 ### Overall Performance Metrics
 
 - **Total Document Tokens (N)**: `69,746`
-- **True Positives (TP)**: `1,435` tokens
-- **False Positives (FP)**: `625` tokens
-- **False Negatives (FN)**: `38` tokens
-- **True Negatives (TN)**: `67,648` tokens
-- **Overall Accuracy**: `0.9905` (99.05%)
-- **Overall Precision**: `0.6966` (69.66%)
-- **Overall Recall**: `0.9742` (97.42%)
-- **Overall F1 Score**: `0.8123` (81.23%)
+- **True Positives (TP)**: `1,434` tokens
+- **False Positives (FP)**: `493` tokens
+- **False Negatives (FN)**: `39` tokens
+- **True Negatives (TN)**: `67,780` tokens
+- **Overall Accuracy**: `0.9924` (99.24%)
+- **Overall Precision**: `0.7442` (74.42%)
+- **Overall Recall**: `0.9735` (97.35%)
+- **Overall F1 Score**: `0.8435` (84.35%)
 
 ### Per-Category Token Summary
 
 | PII Category | Actual (Tokens) | Predicted (Tokens) | TP | FP | FN | TN | Precision | Recall | F1 | Accuracy |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **EMAIL** | 58 | 55 | 55 | 0 | 3 | 69688 | **1.0000** | 0.9483 | 0.9735 | 1.0000 |
-| **PHONE** | 36 | 36 | 36 | 0 | 0 | 69710 | **1.0000** | **1.0000** | **1.0000** | 1.0000 |
-| **PERSON** | 591 | 875 | 591 | 284 | 0 | 68871 | 0.6754 | **1.0000** | 0.8063 | 0.9959 |
-| **ORGANIZATION** | 592 | 898 | 550 | 348 | 42 | 68806 | 0.6125 | 0.9291 | 0.7383 | 0.9944 |
-| **ADDRESS** | 196 | 196 | 196 | 0 | 0 | 69550 | **1.0000** | **1.0000** | **1.0000** | 1.0000 |
-| **SSN** | 0 | 0 | 0 | 0 | 0 | 69746 | N/A | N/A | N/A | N/A (0 doc instances) |
-| **CREDIT_CARD** | 0 | 0 | 0 | 0 | 0 | 69746 | N/A | N/A | N/A | N/A (0 doc instances) |
-| **DOB** | 0 | 0 | 0 | 0 | 0 | 69746 | N/A | N/A | N/A | N/A (0 doc instances) |
-| **IP_ADDRESS** | 0 | 0 | 0 | 0 | 0 | 69746 | N/A | N/A | N/A | N/A (0 doc instances) |
+| **EMAIL** | 58 | 57 | 57 | 0 | 1 | 69,688 | **1.0000** | 0.9828 | 0.9913 | 1.0000 |
+| **PHONE** | 36 | 36 | 36 | 0 | 0 | 69,710 | **1.0000** | **1.0000** | **1.0000** | 1.0000 |
+| **PERSON** | 591 | 736 | 591 | 145 | 0 | 69,010 | 0.8030 | **1.0000** | 0.8907 | 0.9979 |
+| **ORGANIZATION** | 592 | 902 | 554 | 348 | 38 | 68,806 | 0.6142 | 0.9358 | 0.7416 | 0.9945 |
+| **ADDRESS** | 196 | 196 | 196 | 0 | 0 | 69,550 | **1.0000** | **1.0000** | **1.0000** | 1.0000 |
+| **SSN** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
+| **CREDIT_CARD** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
+| **DOB** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
+| **IP_ADDRESS** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
+| **Total** | **1,473** | **1,927** | **1,434** | **493** | **39** | **67,780** | **0.7442** | **0.9735** | **0.8435** | **0.9924** |
 
 > **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` contain 0 actual instances in the prospectus document text. Document-level recall, precision, and F1 are marked `N/A`. The underlying detection logic for these categories is validated via synthetic unit tests in `tests/test_detectors.py`.
 
@@ -172,7 +173,7 @@ For detailed error analysis and formulas, refer to [evaluation/evaluation_report
 
 ## Practical Engineering Tradeoffs & Limitations
 
-1. **Regex vs. spaCy NER**: Regex provides 100% precision for structured fields (emails, Luhn-checked credit cards, IP addresses). spaCy NER identifies broader entities like names and organizations, but incurs false positives from uppercase legal headings (`THE OFFER SHALL CONSTITUTE`, `SYNDICATE MEMBERS`).
+1. **Regex vs. spaCy NER**: In the evaluated prospectus, the structured PII detectors achieved 100% precision for the detected EMAIL, PHONE, and ADDRESS categories. Additional synthetic unit tests validate the remaining structured detectors. spaCy NER identifies broader entities like names and organizations, but incurs false positives from uppercase legal headings (`THE OFFER SHALL CONSTITUTE`, `SYNDICATE MEMBERS`).
 2. **DOCX XML Run Splitting**: In Microsoft Word documents, text inside table cells can be fragmented into multiple XML run objects. When an entity crosses run boundaries, text is merged into the first run to maintain document layout, which may trade off subtle intra-word styling differences.
 3. **Local Privacy**: Document processing is performed entirely locally without external LLM or cloud API dependencies, ensuring sensitive data never leaves the runtime environment.
 

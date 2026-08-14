@@ -2,7 +2,7 @@
 evaluator.py
 Rigorous token-level evaluation module for measuring TP, FP, FN, TN, Accuracy,
 Precision, Recall, and F1 score against verified ground truth.
-Generates evaluation_report.md with transparent formulas and per-category breakdowns.
+Generates evaluation_report.md with transparent formulas, category breakdowns, and consistent totals.
 """
 
 import os
@@ -23,6 +23,7 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
     """
     Execute rigorous token-level evaluation comparing detector predictions
     against ground truth spans across all document tokens.
+    Computes per-category and overall aggregated metrics with mathematical consistency.
     """
     ground_truth = load_ground_truth(ground_truth_path)
     gt_entities = ground_truth.get("entities", [])
@@ -46,7 +47,7 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
     # Run detectors
     predictions = detect_pii(full_document_text)
 
-    # Build ground truth span intervals
+    # Build ground truth span intervals by category
     gt_spans_by_cat: Dict[str, List[tuple]] = {}
     for entity in gt_entities:
         cat = entity["type"]
@@ -56,7 +57,7 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
         for m in pattern.finditer(full_document_text):
             gt_spans_by_cat[cat].append((m.start(), m.end()))
 
-    # Build prediction span intervals
+    # Build prediction span intervals by category
     pred_spans_by_cat: Dict[str, List[tuple]] = {}
     for pred in predictions:
         cat = pred["type"]
@@ -64,61 +65,35 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
             pred_spans_by_cat[cat] = []
         pred_spans_by_cat[cat].append((pred["start"], pred["end"]))
 
-    # Flatten all ground truth and prediction spans for overall metrics
-    all_gt_spans = [span for spans in gt_spans_by_cat.values() for span in spans]
-    all_pred_spans = [span for spans in pred_spans_by_cat.values() for span in spans]
-
-    # Evaluate Overall Tokens
-    tp_total = 0
-    fp_total = 0
-    fn_total = 0
-    tn_total = 0
-
-    for t_match in token_matches:
-        t_start, t_end = t_match.start(), t_match.end()
-        is_gt = any(gs <= t_start and t_end <= ge for gs, ge in all_gt_spans)
-        is_pred = any(ps <= t_start and t_end <= pe for ps, pe in all_pred_spans)
-
-        if is_gt and is_pred:
-            tp_total += 1
-        elif not is_gt and is_pred:
-            fp_total += 1
-        elif is_gt and not is_pred:
-            fn_total += 1
-        else:
-            tn_total += 1
-
-    overall_accuracy = (tp_total + tn_total) / total_tokens if total_tokens > 0 else 0.0
-    overall_precision = tp_total / (tp_total + fp_total) if (tp_total + fp_total) > 0 else 0.0
-    overall_recall = tp_total / (tp_total + fn_total) if (tp_total + fn_total) > 0 else 0.0
-    overall_f1 = (2 * overall_precision * overall_recall) / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0.0
-
-    # Evaluate Per-Category Tokens
+    # Supported PII categories
     categories = [
         "EMAIL", "PHONE", "PERSON", "ORGANIZATION", "ADDRESS",
         "SSN", "CREDIT_CARD", "DOB", "IP_ADDRESS"
     ]
 
     metrics_by_cat: Dict[str, Dict[str, Any]] = {}
+    tp_total = 0
+    fp_total = 0
+    fn_total = 0
 
+    # Evaluate Per-Category Tokens
     for cat in categories:
         cat_gt_spans = gt_spans_by_cat.get(cat, [])
         cat_pred_spans = pred_spans_by_cat.get(cat, [])
 
-        if not cat_gt_spans:
+        if not cat_gt_spans and not cat_pred_spans:
             # Zero-instance categories in prospectus text
-            pred_count = len(cat_pred_spans)
             metrics_by_cat[cat] = {
                 "actual_tokens": 0,
-                "predicted_tokens": pred_count,
+                "predicted_tokens": 0,
                 "tp": 0,
-                "fp": pred_count,
+                "fp": 0,
                 "fn": 0,
-                "tn": total_tokens - pred_count,
+                "tn": total_tokens,
                 "precision": "N/A",
                 "recall": "N/A",
                 "f1": "N/A",
-                "accuracy": "N/A (0 ground truth instances in document)"
+                "accuracy": "N/A (0 doc instances)"
             }
             continue
 
@@ -159,6 +134,20 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
             "accuracy": round(acc_cat, 4)
         }
 
+        tp_total += tp_cat
+        fp_total += fp_cat
+        fn_total += fn_cat
+
+    # Aggregate Overall Multi-class Token Metrics
+    tn_total = total_tokens - tp_total - fp_total - fn_total
+    overall_accuracy = (tp_total + tn_total) / total_tokens if total_tokens > 0 else 0.0
+    overall_precision = tp_total / (tp_total + fp_total) if (tp_total + fp_total) > 0 else 0.0
+    overall_recall = tp_total / (tp_total + fn_total) if (tp_total + fn_total) > 0 else 0.0
+    overall_f1 = (2 * overall_precision * overall_recall) / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0.0
+
+    actual_tokens_total = sum(m["actual_tokens"] for m in metrics_by_cat.values())
+    pred_tokens_total = sum(m["predicted_tokens"] for m in metrics_by_cat.values())
+
     # Generate Markdown Report
     os.makedirs(os.path.dirname(report_output_path), exist_ok=True)
     with open(report_output_path, "w", encoding="utf-8") as f:
@@ -169,10 +158,10 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
         f.write("in the 127-page `Red Herring Prospectus.docx`.\n\n")
 
         f.write("### Evaluation Definitions & Formulas\n")
-        f.write("- **Total Tokens (N)**: Total word tokens in the document text (`{total_tokens:,}`).\n".format(total_tokens=total_tokens))
-        f.write("- **True Positive (TP)**: Tokens that are part of ground-truth PII and correctly identified by the detector.\n")
-        f.write("- **False Positive (FP)**: Non-PII tokens incorrectly classified as PII.\n")
-        f.write("- **False Negative (FN)**: Ground-truth PII tokens missed by the detector.\n")
+        f.write(f"- **Total Tokens (N)**: Total word tokens in the document text (`{total_tokens:,}`).\n")
+        f.write("- **True Positive (TP)**: Tokens that are part of ground-truth PII and correctly identified by the detector ($TP = \\sum TP_{category}$).\n")
+        f.write("- **False Positive (FP)**: Non-PII tokens incorrectly classified as PII ($FP = \\sum FP_{category}$).\n")
+        f.write("- **False Negative (FN)**: Ground-truth PII tokens missed by the detector ($FN = \\sum FN_{category}$).\n")
         f.write("- **True Negative (TN)**: Non-PII tokens correctly left unredacted ($TN = N - TP - FP - FN$).\n")
         f.write("- **Accuracy**: $\\text{Accuracy} = \\frac{TP + TN}{N}$\n")
         f.write("- **Precision**: $\\text{Precision} = \\frac{TP}{TP + FP}$\n")
@@ -202,10 +191,17 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
             acc_str = f"{m['accuracy']:.4f}" if isinstance(m['accuracy'], float) else str(m['accuracy'])
 
             f.write(
-                f"| **{cat}** | {m['actual_tokens']} | {m['predicted_tokens']} | "
-                f"{m['tp']} | {m['fp']} | {m['fn']} | {m['tn']} | "
+                f"| **{cat}** | {m['actual_tokens']:,} | {m['predicted_tokens']:,} | "
+                f"{m['tp']:,} | {m['fp']:,} | {m['fn']:,} | {m['tn']:,} | "
                 f"{p_str} | {r_str} | {f1_str} | {acc_str} |\n"
             )
+
+        # Summary total row agreeing with overall metrics
+        f.write(
+            f"| **Total** | **{actual_tokens_total:,}** | **{pred_tokens_total:,}** | "
+            f"**{tp_total:,}** | **{fp_total:,}** | **{fn_total:,}** | **{tn_total:,}** | "
+            f"**{overall_precision:.4f}** | **{overall_recall:.4f}** | **{overall_f1:.4f}** | **{overall_accuracy:.4f}** |\n"
+        )
 
         f.write("\n> **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` contain zero actual instances in the provided prospectus text. Document-level recall, precision, and F1 are honestly marked `N/A`. The underlying detection logic for these categories is validated via synthetic test cases in `tests/test_detectors.py`.\n\n")
 
@@ -218,7 +214,7 @@ def evaluate_redaction(doc_path: str, ground_truth_path: str, report_output_path
         f.write("- **Isolated Surnames in Dense Financial Tables**: Occurrences where names were abbreviated or listed without title context.\n\n")
 
         f.write("### DOCX Run Fragmentation Tradeoffs\n")
-        f.write("- In Microsoft Word documents, text inside table cells can be fragmented into multiple XML run objects. When an entity crosses run boundaries, text is consolidated into the first run to maintain structure, which may trade off subtle intra-word styling differences.\n")
+        f.write("- In Microsoft Word documents, text inside table cells can be fragmented into multiple XML run objects. When an entity crosses run boundaries, text is consolidated into the first run to maintain structure, with a documented tradeoff on subtle intra-word styling differences.\n")
 
     return {
         "report_path": report_output_path,

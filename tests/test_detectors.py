@@ -1,14 +1,17 @@
 """
 test_detectors.py
-Pytest unit tests for PII detectors, false positive suppression, and replacement consistency.
+Pytest unit tests for PII detectors, false positive suppression, replacement consistency,
+and evaluation metrics calculation.
 """
 
 import pytest
 import docx
 import tempfile
 import os
+import json
 from src.detectors import detect_pii, is_luhn_valid, validate_ip
 from src.redactor import PIIRedactor
+from src.evaluator import evaluate_redaction
 
 
 def test_email_detection():
@@ -268,7 +271,7 @@ def test_v2_full_synthetic_all_9_categories():
     assert any("5555" in t for t in card_texts), "Second card (5555) not detected"
 
 
-# --- New Regression Tests for Replacement Quality & DOCX Multi-line Redaction ---
+# --- Regression Tests for Replacement Quality & DOCX Multi-line Redaction ---
 
 def test_credit_card_replacement_not_equal_to_original():
     """Ensure credit card fake replacement is NEVER identical to original and is valid Luhn."""
@@ -368,3 +371,81 @@ def test_distinct_fake_generation_for_ssn_dob_ip():
     ip2 = redactor.get_replacement("10.0.0.50", "IP_ADDRESS")
     assert ip1 != ip2
     assert ip1 != "192.168.1.25"
+
+
+# --- Tests for Evaluation Metrics Consistency & Formulas ---
+
+def test_evaluator_metric_formulas_and_aggregation_consistency():
+    """Verify evaluator calculates overall metrics directly from category totals with mathematical consistency."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        doc_path = os.path.join(tmpdir, "test_doc.docx")
+        gt_path = os.path.join(tmpdir, "gt.json")
+        report_path = os.path.join(tmpdir, "report.md")
+
+        # Create a document
+        doc = docx.Document()
+        doc.add_paragraph("The Managing Director is Rashi Patil at Example Technologies Private Limited.")
+        doc.add_paragraph("Contact: rashi.patil@example.com, Phone: +91 9876543210.")
+        doc.save(doc_path)
+
+        # Create corresponding ground truth
+        gt_data = {
+            "entities": [
+                {"type": "PERSON", "text": "Rashi Patil"},
+                {"type": "ORGANIZATION", "text": "Example Technologies Private Limited"},
+                {"type": "EMAIL", "text": "rashi.patil@example.com"},
+                {"type": "PHONE", "text": "+91 9876543210"}
+            ]
+        }
+        with open(gt_path, "w", encoding="utf-8") as f:
+            json.dump(gt_data, f)
+
+        res = evaluate_redaction(doc_path, gt_path, report_path)
+
+        # Check that overall TP/FP/FN match the exact sum of category TP/FP/FN
+        sum_tp = sum(m["tp"] for m in res["metrics_by_cat"].values())
+        sum_fp = sum(m["fp"] for m in res["metrics_by_cat"].values())
+        sum_fn = sum(m["fn"] for m in res["metrics_by_cat"].values())
+
+        assert res["tp"] == sum_tp, f"Overall TP ({res['tp']}) != sum of category TP ({sum_tp})"
+        assert res["fp"] == sum_fp, f"Overall FP ({res['fp']}) != sum of category FP ({sum_fp})"
+        assert res["fn"] == sum_fn, f"Overall FN ({res['fn']}) != sum of category FN ({sum_fn})"
+
+        # Check TN formula: TN = N - TP - FP - FN
+        expected_tn = res["total_tokens"] - res["tp"] - res["fp"] - res["fn"]
+        assert res["tn"] == expected_tn, f"Overall TN ({res['tn']}) != expected TN ({expected_tn})"
+
+        # Check Precision, Recall, F1, Accuracy formulas
+        if res["tp"] + res["fp"] > 0:
+            expected_prec = res["tp"] / (res["tp"] + res["fp"])
+            assert abs(res["overall_precision"] - expected_prec) < 1e-6
+        if res["tp"] + res["fn"] > 0:
+            expected_rec = res["tp"] / (res["tp"] + res["fn"])
+            assert abs(res["overall_recall"] - expected_rec) < 1e-6
+        expected_acc = (res["tp"] + res["tn"]) / res["total_tokens"]
+        assert abs(res["overall_accuracy"] - expected_acc) < 1e-6
+
+
+def test_evaluator_zero_instance_categories_handling():
+    """Verify zero-instance categories are safely marked N/A without causing zero-division errors."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        doc_path = os.path.join(tmpdir, "test_doc.docx")
+        gt_path = os.path.join(tmpdir, "gt.json")
+        report_path = os.path.join(tmpdir, "report.md")
+
+        doc = docx.Document()
+        doc.add_paragraph("This text has only one name: Rashi Patil.")
+        doc.save(doc_path)
+
+        gt_data = {"entities": [{"type": "PERSON", "text": "Rashi Patil"}]}
+        with open(gt_path, "w", encoding="utf-8") as f:
+            json.dump(gt_data, f)
+
+        res = evaluate_redaction(doc_path, gt_path, report_path)
+
+        for cat in ["SSN", "CREDIT_CARD", "DOB", "IP_ADDRESS", "ADDRESS"]:
+            m = res["metrics_by_cat"][cat]
+            assert m["actual_tokens"] == 0
+            assert m["precision"] == "N/A"
+            assert m["recall"] == "N/A"
+            assert m["f1"] == "N/A"
