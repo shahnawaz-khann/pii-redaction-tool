@@ -144,14 +144,14 @@ The evaluation is measured at the **token level** across all **69,746 whitespace
 ### Overall Performance
 
 - **Total Document Tokens (N)**: `69,746`
-- **True Positives (TP)**: `1,434` tokens
+- **True Positives (TP)**: `1,436` tokens
 - **False Positives (FP)**: `493` tokens
-- **False Negatives (FN)**: `39` tokens
+- **False Negatives (FN)**: `37` tokens
 - **True Negatives (TN)**: `67,780` tokens
 - **Overall Accuracy**: `0.9924` (99.24%)
-- **Overall Precision**: `0.7442` (74.42%)
-- **Overall Recall**: `0.9735` (97.35%)
-- **Overall F1 Score**: `0.8435` (84.35%)
+- **Overall Precision**: `0.7444` (74.44%)
+- **Overall Recall**: `0.9749` (97.49%)
+- **Overall F1 Score**: `0.8442` (84.42%)
 
 ### Category Breakdown
 
@@ -160,13 +160,13 @@ The evaluation is measured at the **token level** across all **69,746 whitespace
 | **EMAIL** | 58 | 57 | 57 | 0 | 1 | 69,688 | 1.0000 | 0.9828 | 0.9913 | 1.0000 |
 | **PHONE** | 36 | 36 | 36 | 0 | 0 | 69,710 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
 | **PERSON** | 591 | 736 | 591 | 145 | 0 | 69,010 | 0.8030 | 1.0000 | 0.8907 | 0.9979 |
-| **ORGANIZATION** | 592 | 902 | 554 | 348 | 38 | 68,806 | 0.6142 | 0.9358 | 0.7416 | 0.9945 |
+| **ORGANIZATION** | 592 | 904 | 556 | 348 | 36 | 68,806 | 0.6150 | 0.9392 | 0.7433 | 0.9945 |
 | **ADDRESS** | 196 | 196 | 196 | 0 | 0 | 69,550 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
 | **SSN** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **CREDIT_CARD** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **DOB** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
 | **IP_ADDRESS** | 0 | 0 | 0 | 0 | 0 | 69,746 | N/A | N/A | N/A | N/A (0 doc instances) |
-| **Total** | **1,473** | **1,927** | **1,434** | **493** | **39** | **67,780** | **0.7442** | **0.9735** | **0.8435** | **0.9924** |
+| **Total** | **1,473** | **1,929** | **1,436** | **493** | **37** | **67,780** | **0.7444** | **0.9749** | **0.8442** | **0.9924** |
 
 > **Note on Zero-Instance Categories**: `SSN`, `CREDIT_CARD`, `DOB`, and `IP_ADDRESS` do not appear in the actual prospectus text. Their document-level metrics are marked `N/A`. Their detection logic is tested and validated using synthetic test cases in `tests/test_detectors.py`.
 

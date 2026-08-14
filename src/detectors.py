@@ -302,7 +302,7 @@ def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
 
     # 1. Known Domain Entities for high precision
     for person in KNOWN_PERSONS:
-        pattern = re.compile(r'\b' + re.escape(person) + r'\b')
+        pattern = re.compile(r'(?<!\w)' + re.escape(person) + r'(?!\w)')
         for match in pattern.finditer(text):
             detections.append({
                 "text": match.group(0),
@@ -313,7 +313,7 @@ def detect_spacy_pii(text: str) -> List[Dict[str, Any]]:
             })
 
     for org in KNOWN_ORGS:
-        pattern = re.compile(r'\b' + re.escape(org) + r'\b')
+        pattern = re.compile(r'(?<!\w)' + re.escape(org) + r'(?!\w)')
         for match in pattern.finditer(text):
             detections.append({
                 "text": match.group(0),

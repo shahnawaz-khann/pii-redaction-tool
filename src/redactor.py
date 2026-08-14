@@ -180,7 +180,7 @@ class PIIRedactor:
     def replace_text_in_paragraph(self, paragraph: Any) -> int:
         """
         Replace mapped PII in a paragraph while preserving DOCX formatting runs.
-        Handles both intra-run and cross-run text occurrences.
+        Handles intra-run, cross-run, and multiple-entity paragraph occurrences.
         """
         if not paragraph.text or not self.replacement_map:
             return 0
@@ -197,22 +197,20 @@ class PIIRedactor:
         if not present_items:
             return 0
 
-        # Fast path: check if single run contains text
-        for orig, fake_val in present_items:
-            for run in paragraph.runs:
-                if orig in run.text:
-                    run.text = run.text.replace(orig, fake_val)
-                    replacements_made += 1
-
-        # Handle text split across runs
+        # Replace all present items sequentially
         updated_text = paragraph.text
         for orig, fake_val in present_items:
-            if orig in updated_text and paragraph.runs:
-                paragraph.runs[0].text = updated_text.replace(orig, fake_val)
+            if orig in updated_text:
+                updated_text = updated_text.replace(orig, fake_val)
+                replacements_made += 1
+
+        if updated_text != paragraph.text:
+            if paragraph.runs:
+                paragraph.runs[0].text = updated_text
                 for run in paragraph.runs[1:]:
                     run.text = ""
-                replacements_made += 1
-                break
+            else:
+                paragraph.text = updated_text
 
         return replacements_made
 
