@@ -1,10 +1,25 @@
+# Python Virtual Environments
 .venv/
 venv/
+env/
+ENV/
+.env
+
+# Byte-compiled / optimized / cache files
 __pycache__/
+*.py[cod]
+*$py.class
 .pytest_cache/
-*.pyc
+
+# Operating System & IDE Files
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.devcontainer/
 *.log
 
+# Sensitive Document Files (Kept locally for pipeline, never committed)
 input/*.docx
 output/*.docx
+*.docx
