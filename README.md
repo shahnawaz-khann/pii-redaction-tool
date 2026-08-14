@@ -2,7 +2,7 @@
 
 A Python tool to detect Personally Identifiable Information (PII) in Word documents (`.docx`) and replace sensitive data with realistic, consistent fake values while preserving the document's structure and formatting.
 
-Built for the **Scaler AI Labs — Environment Data Intern Role** assignment.
+**Scaler AI Labs — Environment Data Intern Role** assignment.
 
 ---
 
